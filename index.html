@@ -338,7 +338,7 @@ a{color:var(--gold);text-decoration:none}
 .etf-stat-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
 .etf-stat-val{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
 /* ── 央行黄金储备 ── */
-.cb-wrap{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px;margin-top:14px}
+.cb-wrap{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px}
 .cb-table{width:100%;border-collapse:collapse;font-size:12px}
 .cb-table th{text-align:left;padding:8px 12px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--card-border);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
 .cb-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.03);font-variant-numeric:tabular-nums}
@@ -1133,47 +1133,50 @@ a{color:var(--gold);text-decoration:none}
         </div>
 
         <!-- ══ 避险情绪 + ETF ══ -->
-        <div style="display:flex;gap:14px;margin-top:14px" class="macro-fg-etf-row">
-          <!-- 左：避险情绪仪表盘 -->
-          <div class="fg-card" style="flex:1;min-width:0">
-            <div class="macro-sub-hdr" style="margin-top:0;margin-bottom:14px">黄金避险情绪指数</div>
-            <div class="fg-top">
-              <div class="fg-arc-wrap">
-                <svg id="fg-arc-svg" viewBox="0 0 120 72" width="120" height="72">
-                  <path d="M12,65 A48,48 0 0,1 108,65" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>
-                  <path id="fg-arc-fill" d="M12,65 A48,48 0 0,1 108,65" fill="none" stroke="#f0b90b" stroke-width="10" stroke-linecap="round"
-                    stroke-dasharray="150.8" stroke-dashoffset="75.4"/>
-                </svg>
-              </div>
-              <div class="fg-score-info">
-                <div class="fg-score-num" id="fg-score-num">--</div>
-                <div class="fg-score-lbl" id="fg-score-lbl">加载中</div>
-                <div class="fg-score-sub">0 = 强风险偏好 &nbsp;·&nbsp; 100 = 极度避险</div>
+        <!-- ══ 情绪+ETF(左) / 央行储备(右) 两栏 ══ -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;align-items:stretch">
+          <!-- 左列：情绪仪表盘 + ETF上下叠放 -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <!-- 避险情绪仪表盘 -->
+            <div class="fg-card">
+              <div class="macro-sub-hdr" style="margin-top:0;margin-bottom:10px">黄金避险情绪指数</div>
+              <div style="display:flex;align-items:center;gap:14px">
+                <div style="flex-shrink:0">
+                  <svg id="fg-arc-svg" viewBox="0 0 100 62" width="96" height="60">
+                    <path d="M10,56 A40,40 0 0,1 90,56" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="9" stroke-linecap="round"/>
+                    <path id="fg-arc-fill" d="M10,56 A40,40 0 0,1 90,56" fill="none" stroke="#f0b90b" stroke-width="9" stroke-linecap="round"
+                      stroke-dasharray="125.7" stroke-dashoffset="62.8"/>
+                  </svg>
+                </div>
+                <div style="flex-shrink:0;min-width:86px">
+                  <div class="fg-score-num" id="fg-score-num">--</div>
+                  <div class="fg-score-lbl" id="fg-score-lbl" style="font-size:12px">加载中</div>
+                  <div class="fg-score-sub" style="font-size:9px;margin-top:3px">0 弱避险 · 100 强避险</div>
+                </div>
+                <div class="fg-subs" id="fg-subs" style="flex:1;min-width:0">
+                  <div class="fg-sub-row"><span class="fg-sub-name">VIX水平</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
+                  <div class="fg-sub-row"><span class="fg-sub-name">实际利率</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
+                  <div class="fg-sub-row"><span class="fg-sub-name">美元动量</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
+                </div>
               </div>
             </div>
-            <div class="fg-subs" id="fg-subs">
-              <div class="fg-sub-row"><span class="fg-sub-name">VIX水平</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
-              <div class="fg-sub-row"><span class="fg-sub-name">实际利率</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
-              <div class="fg-sub-row"><span class="fg-sub-name">美元动量</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
+            <!-- ETF持仓 -->
+            <div style="background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:16px 18px;flex:1;display:flex;flex-direction:column">
+              <div class="macro-sub-hdr" style="margin-top:0;margin-bottom:10px">黄金 ETF 持仓动向</div>
+              <div class="etf-stack" id="etfStack" style="flex:1;display:flex;flex-direction:column;gap:10px">
+                <div class="etf-card"><div style="color:var(--text3);font-size:12px">加载中...</div></div>
+              </div>
             </div>
           </div>
-          <!-- 右：ETF持仓 -->
-          <div style="flex:1;min-width:0">
-            <div class="macro-sub-hdr" style="margin-top:0;margin-bottom:10px">黄金 ETF 持仓动向</div>
-            <div class="etf-stack" id="etfStack">
-              <div class="etf-card"><div style="color:var(--text3);font-size:12px">加载中...</div></div>
-            </div>
+          <!-- 右列：央行黄金储备通高 -->
+          <div class="cb-wrap" style="margin-top:0;display:flex;flex-direction:column">
+            <div class="macro-sub-hdr" style="margin-top:0;margin-bottom:10px">全球央行黄金储备</div>
+            <table class="cb-table" style="flex:1">
+              <thead><tr><th></th><th>央行</th><th>储备量 (吨)</th><th>占外储比例</th><th>持仓规模</th></tr></thead>
+              <tbody id="cbTableBody"></tbody>
+            </table>
+            <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right">数据来源: 世界黄金协会 · 2025年Q4</div>
           </div>
-        </div>
-
-        <!-- ══ 央行黄金储备 ══ -->
-        <div class="macro-sub-hdr">全球央行黄金储备</div>
-        <div class="cb-wrap">
-          <table class="cb-table">
-            <thead><tr><th></th><th>央行</th><th>储备量 (吨)</th><th>占外储比例</th><th>持仓规模</th></tr></thead>
-            <tbody id="cbTableBody"></tbody>
-          </table>
-          <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right">数据来源: 世界黄金协会 · 2025年Q4</div>
         </div>
 
       </div>
@@ -2187,7 +2190,7 @@ function renderMacroDrivers(d) {
     document.getElementById('fg-score-lbl').textContent = fg.sentiment;
     document.getElementById('fg-score-lbl').style.color = fg.sentimentColor;
     // Arc: perimeter of half-circle r=48 = π×48 ≈ 150.8
-    const perim = 150.8;
+    const perim = 125.7;
     const offset = perim * (1 - fg.composite / 100);
     const arc = document.getElementById('fg-arc-fill');
     if (arc) { arc.style.stroke = fg.sentimentColor; arc.setAttribute('stroke-dashoffset', offset.toFixed(1)); }
@@ -2234,7 +2237,7 @@ function renderMacroEtf(list) {
     const range52Pct = e.high52 > e.low52 ? ((e.price - e.low52) / (e.high52 - e.low52) * 100).toFixed(0) : 50;
     const aum = e.marketCap ? (e.marketCap / 1e9).toFixed(1) + 'B' : '--';
     const vol = e.volume ? (e.volume / 1e6).toFixed(1) + 'M' : '--';
-    return `<div class="etf-card">
+    return `<div class="etf-card" style="flex:1">
       <div class="etf-top">
         <div>
           <div class="etf-name">${e.symbol}</div>
