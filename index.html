@@ -1559,7 +1559,7 @@ function renderMacroLive(data) {
     const col = isUp ? '#00c853' : '#ef4444';
     const pctStr = (isUp ? '+' : '') + (d.changePct || 0).toFixed(2) + '%';
     fxHtml += `<div class="macro-live-item">
-      <div class="macro-live-label">${meta.label}<span style="display:block;font-size:10px;color:var(--text3);font-weight:400;margin-top:1px">${meta.cn}</span></div>
+      <div class="macro-live-label">${meta.label}<span style="font-size:10px;color:var(--text3);font-weight:400;margin-left:5px">${meta.cn}</span></div>
       <div class="macro-live-price">${d.price.toFixed(sym.includes('JPY') || sym.includes('KRW') ? 2 : 4)}</div>
       <div class="macro-live-chg" style="color:${col}">${pctStr}</div>
     </div>`;
