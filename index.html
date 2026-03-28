@@ -409,6 +409,16 @@ a{color:var(--gold);text-decoration:none}
 .pos-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:2000;display:flex;align-items:center;justify-content:center;display:none}
 .pos-modal-overlay.show{display:flex}
 .pos-modal{background:#1a2535;border:1px solid var(--card-border);border-radius:14px;padding:20px;width:260px;box-shadow:0 16px 48px rgba(0,0,0,0.5)}
+/* 量化预测按钮 & 模态框 */
+.wl-predict-btn{position:absolute;top:6px;right:72px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);border-radius:4px;color:#60a5fa;cursor:pointer;font-size:10px;padding:3px 6px;transition:all .2s;white-space:nowrap;opacity:0}
+.wl-card:hover .wl-predict-btn{opacity:1}
+.ml-modal{background:#1a2535;border:1px solid var(--card-border);border-radius:14px;padding:20px;width:300px;max-height:85vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.5)}
+.ml-direction{font-size:36px;text-align:center;margin:10px 0 4px}
+.ml-confidence{text-align:center;font-size:13px;color:var(--text2);margin-bottom:12px}
+.ml-bar-wrap{margin:3px 0}
+.ml-bar-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:2px}
+.ml-bar{height:5px;border-radius:3px;background:rgba(96,165,250,0.25)}
+.ml-bar-fill{height:100%;border-radius:3px;background:#60a5fa;transition:width .4s}
 .pos-modal h4{font-size:14px;color:var(--text);margin-bottom:14px;font-weight:600}
 .pos-modal label{font-size:11px;color:var(--text3);display:block;margin-bottom:4px}
 .pos-modal input{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--card-border);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;outline:none;margin-bottom:10px;font-variant-numeric:tabular-nums;font-family:inherit}
@@ -1911,12 +1921,13 @@ function addAlert() {
   const value=parseFloat(document.getElementById('alertPrice').value);
   if(!value||value<=0){return;}
   state.alerts.push({symbol,type,value,triggered:false});
-  localStorage.setItem('goldAlerts',JSON.stringify(state.alerts));
+  alertsSave();
   renderAlerts(); document.getElementById('alertPrice').value='';
 }
+function alertsSave() { localStorage.setItem('goldAlerts',JSON.stringify(state.alerts)); serverConfigSet('goldAlerts',state.alerts); }
 function removeAlert(i) {
   state.alerts.splice(i,1);
-  localStorage.setItem('goldAlerts',JSON.stringify(state.alerts));
+  alertsSave();
   renderAlerts();
 }
 function checkAlerts() {
@@ -1940,7 +1951,7 @@ function checkAlerts() {
       try{const audio=new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGY+I0B0otO/dkMqNmyXzMKMWzswYZfIuYBVNitfl8a1f1QyK1+WxLN9UjIrXpbDsntQMitelsKxeU4yK16Vwa94TTIrXpW/rXdMMStelb2rdkkxK16UvKl0RzErXZO6p3JFMStdkrilcEMwK12Ruadv');audio.play().catch(()=>{});}catch(e){}
     } else if(!hit){a.triggered=false;}
   });
-  localStorage.setItem('goldAlerts',JSON.stringify(state.alerts));
+  alertsSave();
 }
 
 // ===== Print =====
@@ -2212,12 +2223,12 @@ async function loadAStockChart(code, range, interval) {
 // ===== 自选股 =====
 state.wlCodes = JSON.parse(localStorage.getItem('astock_wl') || '[]');
 
-function wlSave() { localStorage.setItem('astock_wl', JSON.stringify(state.wlCodes)); }
+function wlSave() { localStorage.setItem('astock_wl', JSON.stringify(state.wlCodes)); serverConfigSet('astock_wl', state.wlCodes); }
 
 // ===== 持仓管理 =====
 var posData = JSON.parse(localStorage.getItem('wl_positions') || '{}'); // {key: {cost, qty, market}}
 var posModalKey = null;
-function posSave() { localStorage.setItem('wl_positions', JSON.stringify(posData)); }
+function posSave() { localStorage.setItem('wl_positions', JSON.stringify(posData)); serverConfigSet('wl_positions', posData); }
 function posModalOpen(key, name) {
   posModalKey = key;
   document.getElementById('pos-modal-title').textContent = '持仓编辑 · ' + name;
@@ -2307,6 +2318,7 @@ async function fetchWatchlist() {
       html += '<div class="wl-card" style="background:' + bg + ';border-color:' + col.replace('#','rgba(') + '33);position:relative">';
       html += '<button class="wl-del" data-code="' + s.code + '" title="删除">&times;</button>';
       html += '<button class="wl-pos-btn" onclick="posModalOpen(\'' + s.code + '\',\'' + escH(s.name) + '\')" title="编辑持仓">持仓</button>';
+      html += '<button class="wl-predict-btn" onclick="mlModalOpen(\'' + s.code + '\',\'astock\')" title="ML量化预测">🤖</button>';
       html += '<div style="display:flex;align-items:flex-start;justify-content:space-between">';
       html += '<div><div class="wl-name">' + escH(s.name) + '</div><div class="wl-code">' + s.code + '</div></div>';
       html += '</div>';
@@ -2544,12 +2556,79 @@ document.getElementById('astock-screen-wrap').addEventListener('click', function
   });
 });
 
+// ===== 服务端配置同步 (⑧多设备同步) =====
+async function serverConfigGet(key) {
+  try { const r = await fetch('/api/config/' + key); return (await r.json()).value; } catch(e) { return null; }
+}
+function serverConfigSet(key, value) {
+  fetch('/api/config/' + key, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }).catch(()=>{});
+}
+async function initConfig() {
+  try {
+    const [astock, us, pos, alerts] = await Promise.all([
+      serverConfigGet('astock_wl'), serverConfigGet('us_wl'),
+      serverConfigGet('wl_positions'), serverConfigGet('goldAlerts')
+    ]);
+    if (Array.isArray(astock)) { state.wlCodes = astock; localStorage.setItem('astock_wl', JSON.stringify(astock)); }
+    if (Array.isArray(us)) { usState.wlSymbols = us; localStorage.setItem('us_wl', JSON.stringify(us)); }
+    if (pos && typeof pos === 'object') { Object.assign(posData, pos); localStorage.setItem('wl_positions', JSON.stringify(posData)); }
+    if (Array.isArray(alerts)) { state.alerts = alerts; localStorage.setItem('goldAlerts', JSON.stringify(alerts)); }
+  } catch(e) { /* 服务器不可达时静默降级到 localStorage */ }
+}
+
+// ===== ML 量化预测 (⑨) =====
+function mlModalOpen(symbol, market) {
+  var overlay = document.getElementById('ml-modal-overlay');
+  var body = document.getElementById('ml-modal-body');
+  if (!overlay) return;
+  overlay.classList.add('show');
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);font-size:12px"><span class="ai-typing">正在训练模型...</span></div>';
+  fetchMlPredict(symbol, market);
+}
+function mlModalClose() {
+  var overlay = document.getElementById('ml-modal-overlay');
+  if (overlay) overlay.classList.remove('show');
+}
+async function fetchMlPredict(symbol, market) {
+  var body = document.getElementById('ml-modal-body'); if (!body) return;
+  // A股 code → Yahoo Finance symbol (e.g. 000001 → 000001.SS)
+  var ySymbol = symbol;
+  if (market === 'astock') {
+    if (symbol.length === 6) ySymbol = symbol.startsWith('6') ? symbol + '.SS' : symbol + '.SZ';
+  }
+  try {
+    var resp = await fetch('/api/ml/predict', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({symbol: ySymbol}) });
+    var d = await resp.json();
+    if (d.error) { body.innerHTML = '<div style="color:#ff3d57;font-size:12px;padding:12px">预测失败: ' + escH(d.error) + '</div>'; return; }
+    var isUp = d.direction === 'up';
+    var confPct = Math.round(d.confidence * 100);
+    var upPct = Math.round(d.up_prob * 100);
+    body.innerHTML =
+      '<div style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:4px">' + escH(ySymbol) + '</div>' +
+      '<div class="ml-direction" style="color:' + (isUp?'#ff3d57':'#00c853') + '">' + (isUp?'↑ 看涨':'↓ 看跌') + '</div>' +
+      '<div class="ml-confidence">置信度 <strong style="font-size:16px;color:' + (isUp?'#ff3d57':'#00c853') + '">' + confPct + '%</strong></div>' +
+      '<div style="margin:10px 0 8px;font-size:11px;color:var(--text3);border-top:1px solid var(--card-border);padding-top:10px">涨跌概率分布</div>' +
+      '<div class="ml-bar-wrap"><div class="ml-bar-label"><span style="color:#ff3d57">看涨 ' + upPct + '%</span><span style="color:#00c853">看跌 ' + (100-upPct) + '%</span></div>' +
+      '<div class="ml-bar"><div class="ml-bar-fill" style="width:' + upPct + '%;background:linear-gradient(90deg,#ff3d57,#00c853)"></div></div></div>' +
+      '<div style="margin:12px 0 6px;font-size:11px;color:var(--text3)">主要驱动因子</div>' +
+      d.top_drivers.map(function(f){ var w = Math.round(f.importance * 400); return '<div class="ml-bar-wrap"><div class="ml-bar-label"><span>' + escH(f.name) + '</span><span>' + (f.importance*100).toFixed(1) + '%</span></div><div class="ml-bar"><div class="ml-bar-fill" style="width:' + Math.min(w,100) + '%"></div></div></div>'; }).join('') +
+      '<div style="margin-top:12px;font-size:10px;color:var(--text3);text-align:center">基于过去 ' + d.data_points + ' 个交易日训练 · 仅供参考</div>';
+  } catch(e) {
+    body.innerHTML = '<div style="color:#ff3d57;font-size:12px;padding:12px">请求失败: ' + escH(e.message) + '</div>';
+  }
+}
+document.getElementById('ml-modal-overlay').addEventListener('click', function(e){ if(e.target===this) mlModalClose(); });
+
 // Init
 if(typeof Notification!=='undefined'&&Notification.permission==='default') Notification.requestPermission().catch(()=>{});
-renderAlerts(); fetchCalendar(); fetchMacroData(); fetchMacroLive(); showAiCache(); showScenarioCache(); refreshAll();
-setInterval(fetchMacroLive, 15 * 60 * 1000); // 实时汇率15分钟刷新
-setInterval(refreshAll,30000);
-setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world')},120000);
+async function init() {
+  await initConfig();
+  renderAlerts(); fetchCalendar(); fetchMacroData(); fetchMacroLive(); showAiCache(); showScenarioCache(); refreshAll();
+  setInterval(fetchMacroLive, 15 * 60 * 1000);
+  setInterval(refreshAll, 30000);
+  setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world');}, 120000);
+}
+init();
 window.addEventListener('resize',()=>{
   Object.values(state.charts).forEach(c=>{try{c.resize()}catch(e){}});
   if(sdpState.chart){try{sdpState.chart.resize()}catch(e){}}
@@ -2573,6 +2652,18 @@ window.addEventListener('resize',()=>{
     </div>
   </div>
 </div>
+
+<!-- ML量化预测模态框 -->
+<div class="pos-modal-overlay" id="ml-modal-overlay">
+  <div class="ml-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h4 style="margin:0;font-size:14px">🤖 ML量化预测</h4>
+      <button onclick="mlModalClose()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;line-height:1">&times;</button>
+    </div>
+    <div id="ml-modal-body"><div style="text-align:center;padding:30px;color:var(--text3);font-size:12px">加载中...</div></div>
+  </div>
+</div>
+
 <div class="sec-panel-overlay" id="sec-overlay"></div>
 <div class="sec-detail-panel" id="sec-panel">
   <div class="sec-panel-hdr">
@@ -3004,7 +3095,7 @@ var usState = { chartCode: '^GSPC', range: '1mo', interval: '1h', moverType: 'ga
 var usRefreshTimer = null;
 usState.wlSymbols = JSON.parse(localStorage.getItem('us_wl') || '[]');
 
-function usWlSave() { localStorage.setItem('us_wl', JSON.stringify(usState.wlSymbols)); }
+function usWlSave() { localStorage.setItem('us_wl', JSON.stringify(usState.wlSymbols)); serverConfigSet('us_wl', usState.wlSymbols); }
 function usWlAdd(raw) {
   var sym = raw.trim().toUpperCase().replace(/[^A-Z0-9\.\^\-]/g,'').slice(0,12);
   if (!sym || usState.wlSymbols.includes(sym)) return;
@@ -3194,6 +3285,7 @@ async function fetchUSWatchlist() {
       html += '<div class="wl-card" style="background:'+bg+';border-color:'+bdr+';position:relative" data-sym="'+sym+'" data-name="'+escH(s.name||sym)+'">';
       html += '<button class="wl-del" data-sym="'+sym+'" title="删除">&times;</button>';
       html += '<button class="wl-pos-btn" onclick="posModalOpen(\'us_'+sym+'\',\''+escH(s.name||sym)+'\')" title="编辑持仓">持仓</button>';
+      html += '<button class="wl-predict-btn" onclick="mlModalOpen(\''+sym+'\',\'us\')" title="ML量化预测">🤖</button>';
       html += '<div style="display:flex;align-items:flex-start;justify-content:space-between">';
       html += '<div><div class="wl-name">' + escH(s.name||sym) + '</div><div class="wl-code">'+s.symbol+(stateLabel?'<span style="font-size:9px;color:#ff9800">'+stateLabel+'</span>':'')+'</div></div>';
       html += '</div>';

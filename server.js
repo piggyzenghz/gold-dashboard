@@ -13,16 +13,85 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 app.use(express.static(__dirname));
 app.use(express.json());
 
+// ============ SQLite 数据层 (⑦缓存 + ⑧配置同步) ============
+const Database = require('better-sqlite3');
+const { execFile } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const db = new Database(path.join(dataDir, 'dashboard.db'));
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL DEFAULT 0
+  );
+`);
+
+// 智能 TTL：交易时段用短缓存，非交易时段用长缓存
+function getTTL(short, long) {
+  long = long ?? short * 15;
+  const now = new Date();
+  const cstH = (now.getUTCHours() + 8) % 24;
+  const cstMin = now.getUTCMinutes();
+  const t = cstH * 100 + cstMin;
+  const dow = new Date(now.getTime() + 8 * 3600000).getUTCDay();
+  const isWeekday = dow >= 1 && dow <= 5;
+  // A股 09:30-11:30 & 13:00-15:00；美股 22:30-翌日04:00
+  const trading = isWeekday && ((t >= 930 && t <= 1130) || (t >= 1300 && t <= 1500) || t >= 2230 || t <= 400);
+  return trading ? short : long;
+}
+
+const _cGet = db.prepare('SELECT value, expires_at FROM cache WHERE key = ?');
+const _cSet = db.prepare('INSERT OR REPLACE INTO cache (key, value, expires_at) VALUES (?, ?, ?)');
+const _cDel = db.prepare('DELETE FROM cache WHERE key = ?');
+
+function cacheGet(key) {
+  const row = _cGet.get(key);
+  if (!row) return null;
+  if (Date.now() > row.expires_at) { _cDel.run(key); return null; }
+  return JSON.parse(row.value);
+}
+function cacheSet(key, value, ttlSeconds) {
+  _cSet.run(key, JSON.stringify(value), Date.now() + ttlSeconds * 1000);
+}
+async function withCache(key, ttlSeconds, fetchFn) {
+  const cached = cacheGet(key);
+  if (cached !== null) return cached;
+  const data = await fetchFn();
+  if (data != null) cacheSet(key, data, ttlSeconds);
+  return data;
+}
+
+// ============ 配置同步 API (⑧多设备同步) ============
+app.get('/api/config/:key', (req, res) => {
+  const row = db.prepare('SELECT value FROM config WHERE key = ?').get(req.params.key);
+  res.json({ value: row ? JSON.parse(row.value) : null });
+});
+app.post('/api/config/:key', (req, res) => {
+  const { value } = req.body;
+  db.prepare('INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)').run(
+    req.params.key, JSON.stringify(value), Date.now()
+  );
+  res.json({ ok: true });
+});
+
 // ============ 黄金价格 ============
 
 app.get('/api/gold', async (req, res) => {
   try {
-    const resp = await fetch('https://api.gold-api.com/price/XAU');
-    const data = await resp.json();
+    const data = await withCache('price:gold', getTTL(60), () =>
+      fetch('https://api.gold-api.com/price/XAU').then(r => r.json())
+    );
     res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ============ Yahoo Finance 图表数据 ============
@@ -108,11 +177,13 @@ function getStartDate(range) {
 app.get('/api/quotes', async (req, res) => {
   try {
     const symbols = (req.query.symbols || '').split(',').filter(Boolean);
-    const results = await yahooFinance.quote(symbols);
-    res.json({ quoteResponse: { result: Array.isArray(results) ? results : [results] } });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+    const cKey = `quotes:${symbols.sort().join(',')}`;
+    const data = await withCache(cKey, getTTL(60), async () => {
+      const results = await yahooFinance.quote(symbols);
+      return { quoteResponse: { result: Array.isArray(results) ? results : [results] } };
+    });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ============ 新浪 A股实时行情 ============
@@ -120,6 +191,9 @@ app.get('/api/quotes', async (req, res) => {
 app.get('/api/sina', async (req, res) => {
   try {
     const codes = req.query.codes || 's_sh000001,s_sh000300';
+    const cKey = `sina:${codes}`;
+    const cached = cacheGet(cKey);
+    if (cached) return res.json(cached);
     const url = `https://hq.sinajs.cn/list=${codes}`;
     const resp = await fetch(url, {
       headers: {
@@ -146,6 +220,7 @@ app.get('/api/sina', async (req, res) => {
         };
       }
     }
+    cacheSet(cKey, results, getTTL(30));
     res.json(results);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -157,6 +232,9 @@ app.get('/api/sina', async (req, res) => {
 app.get('/api/news', async (req, res) => {
   try {
     const category = req.query.category || 'finance';
+    const cKey = `news:${category}`;
+    const cached = cacheGet(cKey);
+    if (cached) return res.json(cached);
     const lidMap = { finance: '2516', politics: '2509', world: '2514' };
     const lid = lidMap[category] || '2516';
     const url = `https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=${lid}&k=&num=30&page=1&r=${Math.random()}`;
@@ -174,6 +252,7 @@ app.get('/api/news', async (req, res) => {
       source: item.media_name || item.author || '',
       summary: item.summary || ''
     }));
+    cacheSet(cKey, articles, 600); // 10分钟缓存
     res.json(articles);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -184,28 +263,30 @@ app.get('/api/news', async (req, res) => {
 
 app.get('/api/silver', async (req, res) => {
   try {
-    const resp = await fetch('https://api.gold-api.com/price/XAG');
-    const data = await resp.json();
+    const data = await withCache('price:silver', getTTL(60), () =>
+      fetch('https://api.gold-api.com/price/XAG').then(r => r.json())
+    );
     res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ============ 汇率 ============
 
 app.get('/api/exchange-rate', async (req, res) => {
   try {
-    const result = await yahooFinance.quote('CNY=X');
-    res.json({ rate: result.regularMarketPrice, name: 'USD/CNY' });
-  } catch (e) {
-    res.status(500).json({ error: e.message, rate: 7.25 });
-  }
+    const data = await withCache('price:usdcny', getTTL(120), async () => {
+      const r = await yahooFinance.quote('CNY=X');
+      return { rate: r.regularMarketPrice, name: 'USD/CNY' };
+    });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message, rate: 7.25 }); }
 });
 
 // ============ 恐惧贪婪指数 ============
 
 app.get('/api/fear-greed', async (req, res) => {
+  const cached = cacheGet('fear:greed');
+  if (cached) return res.json(cached);
   try {
     const resp = await fetch('https://production.dataviz.cnn.io/index/fearandgreed/graphdata', {
       headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }
@@ -214,7 +295,9 @@ app.get('/api/fear-greed', async (req, res) => {
     const score = data.fear_and_greed?.score;
     const rating = data.fear_and_greed?.rating;
     const previous = data.fear_and_greed_historical?.previous_close;
-    res.json({ score: Math.round(score), rating, previousClose: Math.round(previous) });
+    const result = { score: Math.round(score), rating, previousClose: Math.round(previous) };
+    cacheSet('fear:greed', result, 1800); // 30分钟缓存
+    res.json(result);
   } catch (e) {
     // fallback: 用 VIX 估算
     try {
@@ -516,6 +599,8 @@ BEAR|情景标题|概率(整数%)|目标价位区间|80字以内分析
 // 六大指数
 app.get('/api/astock/indices', async (req, res) => {
   try {
+    const cached = cacheGet('astock:indices');
+    if (cached) return res.json(cached);
     const codes = 's_sh000001,s_sz399001,s_sh000300,s_sz399006,s_sh000688,s_sh000016';
     const url = `https://hq.sinajs.cn/list=${codes}`;
     const resp = await fetch(url, { headers: { 'Referer': 'https://finance.sina.com.cn', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
@@ -534,6 +619,7 @@ app.get('/api/astock/indices', async (req, res) => {
         };
       }
     }
+    cacheSet('astock:indices', results, getTTL(30));
     res.json(results);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1400,6 +1486,41 @@ cron.schedule('0 8 * * 1-5', async () => { // UTC 8:00 = CST 16:00 Mon-Fri
     const msg = `<b>📈 盘后复盘 ${report.dateStr} 16:00</b>\n\n<b>市场数据</b>\n${report.marketSummary}\n<b>AI 分析</b>\n${report.content}`;
     await sendTelegram(msg);
   }
+}, { timezone: 'Asia/Shanghai' });
+
+// ============ ML 量化预测 (⑨) ============
+app.post('/api/ml/predict', (req, res) => {
+  const { symbol } = req.body;
+  if (!symbol) return res.status(400).json({ error: '需要股票代码' });
+  const scriptPath = path.join(__dirname, 'ml_predict.py');
+  execFile('/usr/bin/python3', [scriptPath, symbol], { timeout: 60000, maxBuffer: 64 * 1024 }, (err, stdout, stderr) => {
+    if (err) {
+      console.error('[ML]', err.message, stderr?.slice(0, 300));
+      return res.status(500).json({ error: err.message });
+    }
+    try {
+      res.json(JSON.parse(stdout.trim()));
+    } catch(e) {
+      res.status(500).json({ error: 'Python 输出解析失败', raw: stdout.slice(0, 200) });
+    }
+  });
+});
+
+// ============ 数据预热 Cron ============
+// 每交易日 08:55 CST 提前预热核心数据 (UTC 00:55)
+cron.schedule('55 0 * * 1-5', async () => {
+  console.log('[Pre-warm] Starting...');
+  try {
+    await Promise.allSettled([
+      withCache('price:gold', 300, () => fetch('https://api.gold-api.com/price/XAU').then(r => r.json())),
+      withCache('price:silver', 300, () => fetch('https://api.gold-api.com/price/XAG').then(r => r.json())),
+      withCache('quotes:' + ['^GSPC','^IXIC','^VIX','GC=F','SI=F','CL=F','DX-Y.NYB'].sort().join(','), 120, async () => {
+        const r = await yahooFinance.quote(['^GSPC','^IXIC','^VIX','GC=F','SI=F','CL=F','DX-Y.NYB']);
+        return { quoteResponse: { result: Array.isArray(r) ? r : [r] } };
+      }),
+    ]);
+    console.log('[Pre-warm] Done');
+  } catch(e) { console.error('[Pre-warm] Error:', e.message); }
 }, { timezone: 'Asia/Shanghai' });
 
 app.listen(PORT, () => {
