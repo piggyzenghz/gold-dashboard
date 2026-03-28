@@ -1811,7 +1811,19 @@ function renderScoreRadar() {
 }
 
 // ===== Scenario Prediction =====
-var scenarioCache = null;
+var scenarioCache = JSON.parse(localStorage.getItem('scenarioCache') || 'null');
+
+function showScenarioCache() {
+  if (!scenarioCache || !scenarioCache.scenarios) return;
+  renderScenarios(scenarioCache.scenarios);
+  var btn = document.getElementById('scenarioBtn');
+  if (btn) {
+    var age = Date.now() - scenarioCache.time;
+    var mins = Math.floor(age / 60000);
+    var timeStr = mins < 1 ? '刚刚' : mins < 60 ? mins + '分钟前' : Math.floor(mins / 60) + '小时前';
+    btn.textContent = '🔮 刷新预测（' + timeStr + '）';
+  }
+}
 
 async function fetchScenarios() {
   var btn = document.getElementById('scenarioBtn');
@@ -1838,7 +1850,8 @@ async function fetchScenarios() {
     var resp = await fetch('/api/ai/scenario', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ marketSummary: m }) });
     var result = await resp.json();
     if (!result.scenarios) throw new Error(result.error || 'No data');
-    scenarioCache = result.scenarios;
+    scenarioCache = { scenarios: result.scenarios, time: Date.now() };
+    localStorage.setItem('scenarioCache', JSON.stringify(scenarioCache));
     renderScenarios(result.scenarios);
     btn.textContent = '🔮 刷新预测';
   } catch(e) {
@@ -2533,7 +2546,7 @@ document.getElementById('astock-screen-wrap').addEventListener('click', function
 
 // Init
 if(typeof Notification!=='undefined'&&Notification.permission==='default') Notification.requestPermission().catch(()=>{});
-renderAlerts(); fetchCalendar(); fetchMacroData(); fetchMacroLive(); showAiCache(); refreshAll();
+renderAlerts(); fetchCalendar(); fetchMacroData(); fetchMacroLive(); showAiCache(); showScenarioCache(); refreshAll();
 setInterval(fetchMacroLive, 15 * 60 * 1000); // 实时汇率15分钟刷新
 setInterval(refreshAll,30000);
 setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world')},120000);
