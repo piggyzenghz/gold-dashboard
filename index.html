@@ -262,6 +262,44 @@ a{color:var(--gold);text-decoration:none}
 
 @media(max-width:1200px){.market-row{grid-template-columns:repeat(3,1fr)}.tool-grid{grid-template-columns:1fr}.macro-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:900px){.gold-row,.ai-news-layout{grid-template-columns:1fr}.market-row{grid-template-columns:repeat(2,1fr)}.macro-grid{grid-template-columns:1fr}}
+@media(max-width:600px){
+  :root{--sidebar-w:52px}
+  .app{height:100dvh}
+  .sidebar{padding-top:12px}
+  .sidebar-logo{width:28px;height:28px;margin-bottom:16px}
+  .nav-item{padding:10px 0;min-height:44px}
+  .nav-item span{display:none}
+  .header{padding:8px 12px}
+  .header h1{font-size:15px}
+  .header h1 span{display:none}
+  .header .clock{font-size:11px}
+  .page-content{padding:10px 12px}
+  .gold-row{grid-template-columns:1fr!important;gap:10px}
+  .market-row{grid-template-columns:repeat(2,1fr)!important;gap:8px}
+  .main-chart{height:220px!important}
+  .macro-grid{grid-template-columns:1fr}
+  .card-price{font-size:22px!important}
+  /* A股 */
+  .astock-idx-grid{grid-template-columns:repeat(3,1fr)!important}
+  .astock-main-row{grid-template-columns:1fr!important}
+  .astock-gauge-col{flex-direction:row!important;flex-wrap:wrap}
+  .astock-bottom-grid{grid-template-columns:1fr!important}
+  .sector-block-grid{grid-template-columns:repeat(4,1fr)!important}
+  .astock-idx-card{padding:8px 10px}
+  .screen-table .screen-hide{display:none}
+  /* 美股 */
+  .us-idx-grid{grid-template-columns:repeat(2,1fr)!important}
+  .us-main-row{grid-template-columns:1fr!important}
+  .us-gauge-col{flex-direction:row!important;flex-wrap:wrap}
+  .us-bottom-grid{grid-template-columns:1fr!important}
+  /* 板块详情面板 & 个股详情面板 */
+  .sec-detail-panel,.stock-detail-panel{width:100vw!important;border-left:none}
+  .sdp-price{font-size:28px!important}
+  .sec-price{font-size:24px!important}
+  /* 自选股 */
+  .wl-grid{grid-template-columns:1fr 1fr!important}
+  .wl-card{padding:10px!important}
+}
 @media(prefers-reduced-motion:reduce){.skeleton{animation:none}.card{transition:none}[data-tip]::after,[data-tip]::before{transition:none}}
 *:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:4px}
 .tool-btn:active,.ai-btn:active{opacity:.7;transform:scale(0.97)}
@@ -1028,13 +1066,14 @@ function switchPage(p) {
   activeNav.classList.add('active'); activeNav.setAttribute('aria-selected','true');
   document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
+  var delay = window.innerWidth <= 600 ? 150 : 50;
   setTimeout(() => {
     Object.values(state.charts).forEach(c => { try { c.resize(); } catch(e) {} });
     if (p === 'compare') loadOverlayChart();
     if (p === 'overview') loadMainChart();
     if (p === 'astock') { startAStockRefresh(); loadAStockChart(state.astockChartCode || '000001.SS', state.astockRange, state.astockInterval); }
     if (p === 'us') { startUSRefresh(); loadUSChart(usState.chartCode, usState.range, usState.interval); }
-  }, 50);
+  }, delay);
 }
 document.querySelector('.sidebar-nav').addEventListener('click', e => { const item = e.target.closest('.nav-item'); if (item) switchPage(item.dataset.page); });
 document.querySelector('.sidebar-nav').addEventListener('keydown', e => { const item = e.target.closest('.nav-item'); if (item && (e.key==='Enter'||e.key===' ')) { e.preventDefault(); switchPage(item.dataset.page); } });
@@ -2059,7 +2098,11 @@ if(Notification.permission==='default') Notification.requestPermission();
 renderAlerts(); fetchCalendar(); fetchMacroData(); showAiCache(); refreshAll();
 setInterval(refreshAll,30000);
 setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world')},120000);
-window.addEventListener('resize',()=>Object.values(state.charts).forEach(c=>{try{c.resize()}catch(e){}}));
+window.addEventListener('resize',()=>{
+  Object.values(state.charts).forEach(c=>{try{c.resize()}catch(e){}});
+  if(sdpState.chart){try{sdpState.chart.resize()}catch(e){}}
+  if(secPanelChart){try{secPanelChart.resize()}catch(e){}}
+});
 </script>
 
 <!-- A股板块详情面板 -->
