@@ -2617,7 +2617,11 @@ async function fetchMlPredict(symbol, market) {
     body.innerHTML = '<div style="color:#ff3d57;font-size:12px;padding:12px">请求失败: ' + escH(e.message) + '</div>';
   }
 }
-document.getElementById('ml-modal-overlay').addEventListener('click', function(e){ if(e.target===this) mlModalClose(); });
+// ml-modal click-outside (element rendered after script, bind on DOMContentLoaded)
+document.addEventListener('DOMContentLoaded', function() {
+  var mlOvl = document.getElementById('ml-modal-overlay');
+  if (mlOvl) mlOvl.addEventListener('click', function(e){ if(e.target===this) mlModalClose(); });
+});
 
 // Init
 if(typeof Notification!=='undefined'&&Notification.permission==='default') Notification.requestPermission().catch(()=>{});
