@@ -1024,26 +1024,26 @@ a{color:var(--gold);text-decoration:none}
         <!-- 底部三栏 -->
         <div class="astock-bottom-grid">
           <!-- 涨跌幅榜 -->
-          <div class="chart-section" style="padding:14px">
+          <div class="chart-section" style="padding:14px;display:flex;flex-direction:column">
             <div class="us-section-title">涨跌幅榜 <small>大市值 · TradingView</small></div>
             <div class="astock-sub-tabs" id="us-mover-tabs">
               <button class="astock-sub-tab active" data-type="gainers">涨幅 ↑</button>
               <button class="astock-sub-tab" data-type="losers">跌幅 ↓</button>
               <button class="astock-sub-tab" data-type="active">成交活跃</button>
             </div>
-            <div id="us-movers-list" class="stock-list"></div>
+            <div id="us-movers-list" class="stock-list" style="flex:1;max-height:none;overflow-y:auto"></div>
           </div>
           <!-- 市场状态 -->
-          <div class="chart-section" style="padding:14px">
+          <div class="chart-section" style="padding:14px;display:flex;flex-direction:column">
             <div class="us-section-title">美股市场状态</div>
-            <div id="us-market-status" style="display:flex;flex-direction:column;gap:10px">
+            <div id="us-market-status" style="display:flex;flex-direction:column;gap:10px;flex:1;overflow-y:auto">
               <div style="color:var(--text3);font-size:12px">加载中...</div>
             </div>
           </div>
           <!-- 关键统计 -->
-          <div class="chart-section" style="padding:14px">
+          <div class="chart-section" style="padding:14px;display:flex;flex-direction:column">
             <div class="us-section-title">今日统计 <small>基于指数数据</small></div>
-            <div id="us-stats-list" style="display:flex;flex-direction:column;gap:8px">
+            <div id="us-stats-list" style="display:flex;flex-direction:column;gap:8px;flex:1;overflow-y:auto">
               <div style="color:var(--text3);font-size:12px">加载中...</div>
             </div>
           </div>
