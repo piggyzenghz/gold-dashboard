@@ -1523,7 +1523,7 @@ db.exec(`
 
 const OPENROUTER_API_KEY = '***REMOVED_OPENROUTER_KEY_3***';
 const OPENROUTER_MODEL = 'xiaomi/mimo-v2-pro';
-const PYTHON_BIN = '/Users/xiaojiu/trader_venv/bin/python';
+const PYTHON_BIN = '/usr/bin/python3';
 const RESEARCH_PY = path.join(__dirname, 'research_data.py');
 
 // POST /api/research/generate
