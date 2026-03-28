@@ -1213,7 +1213,7 @@ async function generateDailyReport(type) {
     if (rate) marketSummary += `• 美元/人民币: ${rate.toFixed(4)}\n`;
     if (fear?.score != null) marketSummary += `• 恐惧贪婪指数: ${Math.round(fear.score)} (${fear.rating})\n`;
     sina.forEach(s => {
-      const name = {1:'000001':'上证','0':'399001':'深成','1':'000300':'沪深300','0':'399006':'创业板'}[s.f12] || s.f14;
+      const name = {'000001':'上证','399001':'深成','000300':'沪深300','399006':'创业板'}[String(s.f12)] || s.f14;
       const pct = (s.f3||0);
       if (s.f12 && ['000001','000300'].includes(String(s.f12))) {
         marketSummary += `• ${s.f14}: ${(s.f2/100).toFixed(2)} (${pct>0?'+':''}${pct.toFixed(2)}%)\n`;
