@@ -273,12 +273,22 @@ a{color:var(--gold);text-decoration:none}
   .header h1{font-size:15px}
   .header h1 span{display:none}
   .header .clock{font-size:11px}
-  .page-content{padding:10px 12px}
+  .page-content{padding:10px 12px;overflow-x:hidden}
+  /* 行情总览 */
   .gold-row{grid-template-columns:1fr!important;gap:10px}
   .market-row{grid-template-columns:repeat(2,1fr)!important;gap:8px}
   .main-chart{height:220px!important}
-  .macro-grid{grid-template-columns:1fr}
+  .gauge-row{grid-template-columns:1fr!important}
+  .gauge-card{padding:12px!important}
   .card-price{font-size:22px!important}
+  .gold-card .card-price{font-size:28px!important}
+  .gold-card .card-mini-chart{height:80px!important}
+  /* 宏观经济 */
+  .macro-grid{grid-template-columns:1fr!important}
+  .macro-tabs{flex-wrap:wrap;gap:4px}
+  .macro-tab{padding:6px 14px;font-size:13px}
+  .macro-table{overflow-x:auto}
+  .macro-table table{min-width:400px}
   /* A股 */
   .astock-idx-grid{grid-template-columns:repeat(3,1fr)!important}
   .astock-main-row{grid-template-columns:1fr!important}
