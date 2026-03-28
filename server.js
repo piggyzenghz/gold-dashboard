@@ -385,6 +385,40 @@ ${newsData}
   }
 });
 
+// ============ AI 情景预测 ============
+
+app.post('/api/ai/scenario', async (req, res) => {
+  try {
+    const { marketSummary } = req.body;
+    const prompt = `你是一位专业的黄金分析师。根据以下实时市场数据，给出黄金近期（1-2周）走势的三种情景预测。\n\n市场数据：\n${marketSummary}\n\n请严格按以下JSON格式返回，不要输出任何其他内容，不要有代码块标记：\n{"bull":{"title":"乐观情景","probability":30,"target":"目标价位区间","desc":"80字以内具体分析，说明触发条件"},"neutral":{"title":"中性震荡","probability":45,"target":"目标价位区间","desc":"80字以内具体分析，说明核心逻辑"},"bear":{"title":"悲观情景","probability":25,"target":"目标价位区间","desc":"80字以内具体分析，说明风险因素"}}\n\n注意：三个probability之和必须等于100。`;
+
+    const resp = await fetch('https://api.minimax.chat/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MINIMAX_API_KEY}` },
+      body: JSON.stringify({
+        model: 'MiniMax-M2.7',
+        messages: [
+          { role: 'system', content: '你是专业黄金分析师，只输出纯JSON，不要有任何额外文字或代码块。' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.6,
+        max_completion_tokens: 800,
+        stream: false
+      })
+    });
+    const data = await resp.json();
+    let content = data.choices?.[0]?.message?.content || '';
+    content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim();
+    // Extract JSON from response
+    const match = content.match(/\{[\s\S]*\}/);
+    if (!match) return res.status(500).json({ error: 'No JSON in response', raw: content });
+    const scenarios = JSON.parse(match[0]);
+    res.json({ scenarios });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ============ A股数据 ============
 
 // 六大指数

@@ -441,6 +441,25 @@ a{color:var(--gold);text-decoration:none}
 .sig-dot{width:7px;height:7px;border-radius:1px;background:var(--card-border)}
 .sig-dot.pos{background:var(--gold)}
 .sig-dot.neg{background:rgba(255,61,87,0.7)}
+/* 评分雷达图 & 情景预测 */
+.score-section{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.score-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:16px}
+.score-card h3{font-size:14px;color:var(--gold);font-weight:600;margin:0}
+#gold-radar{width:100%;height:270px}
+.score-avg{display:flex;justify-content:center;align-items:baseline;gap:8px;margin-top:2px;padding-top:4px;border-top:1px solid var(--card-border)}
+.scenario-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.scenario-item{padding:11px 13px;border-radius:9px;border:1px solid}
+.scenario-bull{background:rgba(0,200,83,0.06);border-color:rgba(0,200,83,0.25)}
+.scenario-neutral{background:rgba(240,185,11,0.06);border-color:rgba(240,185,11,0.2)}
+.scenario-bear{background:rgba(255,61,87,0.06);border-color:rgba(255,61,87,0.2)}
+.scenario-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.scenario-title{font-size:13px;font-weight:600}
+.scenario-prob{font-size:11px;opacity:.85;font-variant-numeric:tabular-nums}
+.scenario-desc{font-size:12px;color:var(--text2);line-height:1.65}
+.scenario-target{font-size:11px;margin-top:5px;font-variant-numeric:tabular-nums;font-weight:600;opacity:.9}
+.scenario-placeholder{text-align:center;padding:28px 12px;color:var(--text3);font-size:12px;line-height:1.8}
+@media(max-width:900px){.score-section{grid-template-columns:1fr}}
+
 /* 个股详情面板 */
 .stock-detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;opacity:0;pointer-events:none;transition:opacity .25s}
 .stock-detail-overlay.open{opacity:1;pointer-events:auto}
@@ -652,6 +671,27 @@ a{color:var(--gold);text-decoration:none}
             </div>
           </div>
           <div class="main-chart" id="mainChart"></div>
+        </div>
+
+        <!-- 评分雷达 + 情景预测 -->
+        <div class="score-section">
+          <div class="score-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <h3>黄金综合评分</h3>
+              <span style="font-size:11px;color:var(--text3)">6维实时评估</span>
+            </div>
+            <div id="gold-radar"></div>
+            <div class="score-avg" id="score-avg"><span style="color:var(--text3);font-size:12px">综合评分</span><span id="score-avg-val" style="font-size:26px;font-weight:700;font-variant-numeric:tabular-nums">--</span><span id="score-avg-label" style="font-size:12px">计算中</span></div>
+          </div>
+          <div class="score-card">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h3>情景预测</h3>
+              <button onclick="fetchScenarios()" id="scenarioBtn" style="background:rgba(240,185,11,0.08);border:1px solid rgba(240,185,11,0.2);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px;padding:5px 11px;transition:all .2s">🔮 生成预测</button>
+            </div>
+            <div id="scenario-content" class="scenario-list">
+              <div class="scenario-placeholder">点击"生成预测"<br>AI 将基于当前行情给出乐观 / 中性 / 悲观三种情景<br>附置信度与目标价位</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1325,6 +1365,7 @@ async function updateGoldCharts() {
   const open = data.meta.chartPreviousClose||prices[0];
   const hi = Math.max(...prices), lo = Math.min(...prices);
   const change = current-open, pct = (change/open)*100, isUp = change>=0, sign = isUp?'+':'';
+  state.marketData.goldChangePct = pct; // used by radar scoring
   document.getElementById('change-xau').className = 'card-change '+(isUp?'up':'down');
   document.getElementById('change-xau').textContent = `${isUp?'▲':'▼'} ${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
   document.getElementById('detail-xau').textContent = `最高 $${hi.toFixed(2)} · 最低 $${lo.toFixed(2)} · 昨收 $${open.toFixed(2)}`;
@@ -1583,6 +1624,134 @@ function updateSpread() {
   bar.style.background=spread>=0?'var(--green)':'var(--red)';
 }
 
+// ===== Score Radar =====
+function computeGoldScores() {
+  var gold = state.marketData.gold;
+  if (!gold || !gold.price) return null;
+  var silver = state.marketData['SI=F'];
+  var dxy    = state.marketData['DX-Y.NYB'];
+  var vix    = state.marketData['^VIX'];
+  var fg     = state.marketData.fearGreed;
+  var goldPct = state.marketData.goldChangePct || 0;
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function sc(v){return Math.round(clamp(v,0,100));}
+
+  // 1. 趋势: 1日涨跌幅方向强度
+  var trend = sc(50 + clamp(goldPct * 15, -50, 50));
+
+  // 2. 动量: 金银联动共振
+  var silverPct = silver ? silver.changePct : 0;
+  var momentum = sc(50 + (goldPct * 0.65 + silverPct * 0.35) * 12);
+
+  // 3. 情绪: 恐惧贪婪逆向 (恐惧→避险需求高→利好黄金)
+  var sentiment = fg != null ? sc(100 - fg) : 50;
+
+  // 4. 避险: VIX高位 + 美元弱
+  var vixScore = vix ? clamp((vix.price - 10) / 30 * 75, 0, 75) : 40;
+  var dxyScore = dxy  ? clamp(-dxy.changePct * 15, -20, 20) : 0;
+  var safeHaven = sc(vixScore + dxyScore + 10);
+
+  // 5. 估值: 金银比越低黄金越有性价比 (历史均值约65)
+  var gsr = silver && silver.price > 0 ? gold.price / silver.price : 80;
+  var valuation = sc((90 - gsr) * 2.5);
+
+  // 6. 技术: 美元走弱 × 黄金自身方向
+  var technical = sc(50 + goldPct * 10 + (dxy ? -dxy.changePct * 8 : 0));
+
+  return { trend, momentum, sentiment, safeHaven, valuation, technical };
+}
+
+function renderScoreRadar() {
+  var el = document.getElementById('gold-radar'); if (!el) return;
+  var scores = computeGoldScores(); if (!scores) return;
+  var chart = state.charts['gold-radar'] || (state.charts['gold-radar'] = echarts.init(el));
+  var vals = [scores.trend, scores.momentum, scores.sentiment, scores.safeHaven, scores.valuation, scores.technical];
+  var avg = Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length);
+  var color = avg >= 65 ? '#00c853' : avg >= 40 ? '#f0b90b' : '#ff3d57';
+  var label = avg >= 65 ? '偏多' : avg >= 40 ? '中性' : '偏空';
+  chart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'item', backgroundColor: 'rgba(19,26,42,.95)', borderColor: '#1e2a3a', textStyle: { color: '#e8eaed', fontSize: 12 } },
+    radar: {
+      center: ['50%', '50%'], radius: '65%',
+      indicator: [
+        {name:'趋势',max:100},{name:'动量',max:100},{name:'情绪',max:100},
+        {name:'避险',max:100},{name:'估值',max:100},{name:'技术',max:100}
+      ],
+      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } },
+      splitArea: { show: false },
+      axisName: { color: '#8899a6', fontSize: 11 }
+    },
+    series: [{
+      type: 'radar',
+      data: [{ value: vals, name: '黄金评分',
+        lineStyle: { color: '#f0b90b', width: 2 },
+        areaStyle: { color: 'rgba(240,185,11,0.18)' },
+        itemStyle: { color: '#f0b90b' }
+      }]
+    }]
+  }, true);
+  var avgEl = document.getElementById('score-avg-val');
+  var lblEl = document.getElementById('score-avg-label');
+  if (avgEl) { avgEl.textContent = avg; avgEl.style.color = color; }
+  if (lblEl) { lblEl.textContent = label; lblEl.style.color = color; }
+}
+
+// ===== Scenario Prediction =====
+var scenarioCache = null;
+
+async function fetchScenarios() {
+  var btn = document.getElementById('scenarioBtn');
+  var content = document.getElementById('scenario-content');
+  if (!btn || !content) return;
+  btn.disabled = true; btn.textContent = '生成中...';
+  content.innerHTML = '<div class="scenario-placeholder"><span class="ai-typing">AI 正在分析市场数据...</span></div>';
+
+  var m = '';
+  if (state.marketData.gold) m += `国际金价: $${state.marketData.gold.price.toFixed(2)}/盎司`;
+  var goldPct = state.marketData.goldChangePct;
+  if (goldPct != null) m += ` (今日${goldPct>=0?'+':''}${goldPct.toFixed(2)}%)`;
+  m += '\n';
+  if (state.marketData.fearGreed != null) m += `恐惧贪婪指数: ${state.marketData.fearGreed}\n`;
+  var dxy = state.marketData['DX-Y.NYB'];
+  if (dxy) m += `美元指数: ${dxy.price.toFixed(2)} (${dxy.changePct>=0?'+':''}${dxy.changePct.toFixed(2)}%)\n`;
+  var vix = state.marketData['^VIX'];
+  if (vix) m += `VIX波动率: ${vix.price.toFixed(2)}\n`;
+  var silver = state.marketData['SI=F'];
+  if (state.marketData.gold && silver) m += `金银比: ${(state.marketData.gold.price/silver.price).toFixed(1)}\n`;
+  if (state.marketData.usdcny) m += `美元/人民币: ${state.marketData.usdcny.toFixed(4)}\n`;
+
+  try {
+    var resp = await fetch('/api/ai/scenario', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ marketSummary: m }) });
+    var result = await resp.json();
+    if (!result.scenarios) throw new Error(result.error || 'No data');
+    scenarioCache = result.scenarios;
+    renderScenarios(result.scenarios);
+    btn.textContent = '🔮 刷新预测';
+  } catch(e) {
+    content.innerHTML = '<div class="scenario-placeholder" style="color:#ff3d57">生成失败，请稍后重试</div>';
+    btn.textContent = '🔮 生成预测';
+  }
+  btn.disabled = false;
+}
+
+function renderScenarios(s) {
+  var el = document.getElementById('scenario-content'); if (!el || !s) return;
+  function item(type, d, color) {
+    if (!d) return '';
+    return '<div class="scenario-item scenario-' + type + '">'
+      + '<div class="scenario-header">'
+      + '<span class="scenario-title" style="color:' + color + '">' + escH(d.title||'') + '</span>'
+      + '<span class="scenario-prob" style="color:' + color + '">' + (d.probability||0) + '%</span>'
+      + '</div>'
+      + '<div class="scenario-desc">' + escH(d.desc||'') + '</div>'
+      + (d.target ? '<div class="scenario-target" style="color:' + color + '">目标区间: ' + escH(d.target) + '</div>' : '')
+      + '</div>';
+  }
+  el.innerHTML = item('bull',s.bull,'#00c853') + item('neutral',s.neutral,'#f0b90b') + item('bear',s.bear,'#ff3d57');
+}
+
 // ===== Alerts =====
 function onAlertTypeChange() {
   var t = document.getElementById('alertType').value;
@@ -1701,7 +1870,7 @@ async function refreshAll() {
     state.currentPage==='overview'?loadMainChart():Promise.resolve(),
     state.currentPage==='compare'?loadOverlayChart():Promise.resolve()
   ]);
-  updateCalcResult(); updatePLResult(); updateSpread(); checkAlerts();
+  updateCalcResult(); updatePLResult(); updateSpread(); checkAlerts(); renderScoreRadar();
 }
 
 // ===== A股看板 =====
