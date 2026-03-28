@@ -6,7 +6,7 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 const app = express();
 const PORT = 3000;
 
-const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-ce3100d8e2224087802e684691144052';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 
@@ -478,7 +478,7 @@ app.get('/api/macro', (req, res) => {
   res.json({ quarters, economies: data, updated: '2026-03-26' });
 });
 
-// ============ AI 分析 (MiniMax M2.7) ============
+// ============ AI 分析 (DeepSeek) ============
 
 app.post('/api/ai/analyze', async (req, res) => {
   try {
@@ -504,20 +504,20 @@ ${newsData}
 
 请用中文回答，简洁专业，控制在500字以内。`;
 
-    const resp = await fetch('https://api.minimax.chat/v1/chat/completions', {
+    const resp = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MINIMAX_API_KEY}`
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'MiniMax-M2.7',
+        model: 'deepseek-chat',
         messages: [
           { role: 'system', content: '你是一位专业的黄金市场分析师，擅长从宏观经济数据和市场联动关系中分析黄金走势。' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.7,
-        max_completion_tokens: 2048,
+        max_tokens: 2048,
         stream: false
       })
     });
@@ -551,17 +551,17 @@ BEAR|情景标题|概率(整数%)|目标价位区间|80字以内分析
 
 要求：三行概率之和=100；分析文字不要使用竖线符号"|"。`;
 
-    const resp = await fetch('https://api.minimax.chat/v1/chat/completions', {
+    const resp = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MINIMAX_API_KEY}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DEEPSEEK_API_KEY}` },
       body: JSON.stringify({
-        model: 'MiniMax-M2.7',
+        model: 'deepseek-chat',
         messages: [
           { role: 'system', content: '你是专业黄金分析师，严格按用户要求的格式输出，不添加任何额外文字。' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.6,
-        max_completion_tokens: 600,
+        max_tokens: 600,
         stream: false
       })
     });
@@ -1438,13 +1438,13 @@ async function generateDailyReport(type) {
     ? `你是一位专业的金融分析师。今天是${dateStr}，现在是${timeStr}，A股即将开盘。请根据以下市场数据，给出一份简洁的盘前分析（200字以内），重点分析黄金走势和对A股的影响，以及今日值得关注的风险点。\n\n市场数据：\n${marketSummary}\n\n请用中文，分析要简洁专业，末尾给出今日操作建议（1-2句话）。`
     : `你是一位专业的金融分析师。今天是${dateStr}，A股已收盘。请根据以下市场数据，给出一份简洁的盘后复盘（200字以内），总结今日市场表现，分析明日走势预判。\n\n市场数据：\n${marketSummary}\n\n请用中文，分析要简洁专业，末尾给出明日布局建议（1-2句话）。`;
 
-  if (!MINIMAX_API_KEY) return null;
+  if (!DEEPSEEK_API_KEY) return null;
   try {
-    const aiResp = await fetch('https://api.minimax.chat/v1/text/chatcompletion_v2', {
+    const aiResp = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${MINIMAX_API_KEY}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'MiniMax-M2',
+        model: 'deepseek-chat',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         max_tokens: 500
@@ -1521,8 +1521,7 @@ db.exec(`
   );
 `);
 
-const OPENROUTER_API_KEY = '***REMOVED_OPENROUTER_KEY_1***';
-const OPENROUTER_MODEL = 'xiaomi/mimo-v2-pro';
+// DeepSeek 也用于深度研究报告（reasoner 模型质量更好）
 const PYTHON_BIN = '/usr/bin/python3';
 const RESEARCH_PY = path.join(__dirname, 'research_data.py');
 
@@ -1582,22 +1581,20 @@ rating_score：强力推荐=5，推荐=4，中性=3，减持=2，强力减持=1
 target_price：基于当前价格和基本面给出合理目标价（数字）
 risk_reward_ratio：风险收益比（如2.5表示潜在收益是风险的2.5倍）`;
 
-    const aiResp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const aiResp = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://gold-dashboard.local',
-        'X-Title': 'Gold Dashboard Research'
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
       },
       body: JSON.stringify({
-        model: OPENROUTER_MODEL,
+        model: 'deepseek-reasoner',
         messages: [
           { role: 'system', content: '你是专业股票分析师，严格按JSON格式输出，不添加任何额外文字和markdown。' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.5,
-        max_tokens: 2000
+        max_tokens: 3000
       })
     });
 
