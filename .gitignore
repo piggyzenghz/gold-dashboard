@@ -1,0 +1,6 @@
+node_modules/
+.firecrawl/
+*.log
+server.log
+.env
+*.bak.*

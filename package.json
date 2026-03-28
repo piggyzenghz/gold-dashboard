@@ -1,0 +1,14 @@
+{
+  "name": "gold-dashboard",
+  "version": "1.0.0",
+  "description": "黄金价格监控中心",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^4.21.0",
+    "yahoo-finance2": "^3.14.0"
+  }
+}
