@@ -6,7 +6,7 @@ const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 const app = express();
 const PORT = 3000;
 
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-ce3100d8e2224087802e684691144052';
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 
@@ -625,6 +625,60 @@ app.get('/api/astock/indices', async (req, res) => {
 });
 
 // 申万行业板块涨跌
+// 申万行业历史资金流向（主力净流入累计）
+const sectorFlowCaches = {}; // key: days，分别缓存不同时间段
+const SECTOR_FLOW_TTL = 15 * 60 * 1000;
+const SECTORS_CFG = [
+  { code: 'BK1201', name: '电子' },
+  { code: 'BK1207', name: '计算机' },
+  { code: 'BK1216', name: '医药生物' },
+  { code: 'BK1283', name: '银行' },
+  { code: 'BK1203', name: '非银金融' },
+  { code: 'BK0438', name: '食品饮料' },
+  { code: 'BK1200', name: '电力设备' },
+  { code: 'BK1202', name: '房地产' },
+  { code: 'BK0478', name: '有色金属' },
+  { code: 'BK0437', name: '煤炭' },
+];
+app.get('/api/astock/sector-flow-history', async (req, res) => {
+  const days = Math.min(parseInt(req.query.days) || 30, 252);
+  const cKey = String(days);
+  const cached = sectorFlowCaches[cKey];
+  if (cached && Date.now() - cached.ts < SECTOR_FLOW_TTL) return res.json(cached.data);
+  const hdrs = { 'Referer': 'https://data.eastmoney.com/', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+  const fetchOne = async s => {
+    const url = `https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=90.${s.code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&ut=7eea3edcaed734bea9cbfc24409ed989`;
+    const resp = await fetch(url, { headers: hdrs, signal: AbortSignal.timeout(10000) });
+    const data = await resp.json();
+    const klines = (data.data?.klines || []).slice(-days);
+    let cum = 0;
+    const dates = [], values = [];
+    for (const k of klines) {
+      const p = k.split(',');
+      cum += parseFloat(p[1] || 0) / 1e8;
+      dates.push(p[0]);
+      values.push(parseFloat(cum.toFixed(2)));
+    }
+    return { code: s.code, name: s.name, dates, values };
+  };
+  try {
+    // 分3批请求，每批间隔300ms，避免触发限流
+    const all = [];
+    for (let i = 0; i < SECTORS_CFG.length; i += 4) {
+      const batch = SECTORS_CFG.slice(i, i + 4);
+      const res2 = await Promise.allSettled(batch.map(fetchOne));
+      all.push(...res2);
+      if (i + 4 < SECTORS_CFG.length) await delay(300);
+    }
+    const sectors = all.filter(r => r.status === 'fulfilled' && r.value.dates.length > 0).map(r => r.value);
+    const dates = sectors.reduce((a, b) => a.dates.length >= b.dates.length ? a : b, { dates: [] }).dates;
+    const result = { dates, sectors };
+    sectorFlowCaches[cKey] = { data: result, ts: Date.now() };
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/astock/sectors', async (req, res) => {
   try {
     const url = 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:90+t:2+f:!50&fields=f2,f3,f4,f12,f14';
@@ -1063,6 +1117,61 @@ app.get('/api/us/indices', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/ticker — 行情滚动条聚合（A股指数 + 大宗商品 + 美股指数）
+app.get('/api/ticker', async (req, res) => {
+  const YH_ITEMS = [
+    { symbol: 'GC=F',    name: '黄金',   market: 'gl' },
+    { symbol: 'SI=F',    name: '白银',   market: 'gl' },
+    { symbol: 'CL=F',    name: '原油',   market: 'gl' },
+    { symbol: 'BTC-USD', name: '比特币', market: 'gl' },
+    { symbol: '^GSPC',   name: '标普500', market: 'us' },
+    { symbol: '^DJI',    name: '道琼斯', market: 'us' },
+    { symbol: '^IXIC',   name: '纳斯达克', market: 'us' },
+    { symbol: '^VIX',    name: 'VIX',   market: 'us' },
+  ];
+  const CN_INDICES = [
+    { code: 'sh000001', name: '上证指数' },
+    { code: 'sz399001', name: '深成指数' },
+    { code: 'sh000300', name: '沪深300' },
+    { code: 'sz399006', name: '创业板' },
+  ];
+  try {
+    const [yhRes, sinaRes] = await Promise.allSettled([
+      yahooFinance.quote(YH_ITEMS.map(i => i.symbol)),
+      fetch('https://hq.sinajs.cn/list=' + CN_INDICES.map(i => i.code).join(','), {
+        headers: { 'Referer': 'https://finance.sina.com.cn', 'User-Agent': 'Mozilla/5.0' }
+      }).then(r => r.arrayBuffer()).then(buf => new TextDecoder('gbk').decode(buf))
+    ]);
+
+    const items = [];
+    // A股指数（优先放前面）
+    if (sinaRes.status === 'fulfilled') {
+      const nameMap = Object.fromEntries(CN_INDICES.map(i => [i.code, i.name]));
+      for (const line of sinaRes.value.trim().split('\n')) {
+        const m = line.match(/hq_str_(\w+)="(.+)"/);
+        if (!m) continue;
+        const f = m[2].split(',');
+        const price = parseFloat(f[3]);
+        const prevClose = parseFloat(f[2]);
+        if (!price) continue;
+        const chg = price - prevClose;
+        items.push({ name: nameMap[m[1]] || m[1], price: price.toFixed(2), change: chg, changePct: prevClose > 0 ? chg / prevClose * 100 : 0, market: 'cn' });
+      }
+    }
+    // 大宗 + 美股指数
+    if (yhRes.status === 'fulfilled') {
+      const arr = Array.isArray(yhRes.value) ? yhRes.value : [yhRes.value];
+      const nameMap = Object.fromEntries(YH_ITEMS.map(i => [i.symbol, { name: i.name, market: i.market }]));
+      arr.forEach(q => {
+        if (!q || q.regularMarketPrice == null) return;
+        const meta = nameMap[q.symbol] || { name: q.symbol, market: 'gl' };
+        items.push({ name: meta.name, price: q.regularMarketPrice.toFixed(2), change: q.regularMarketChange || 0, changePct: q.regularMarketChangePercent || 0, market: meta.market });
+      });
+    }
+    res.json(items);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/us/sectors', async (req, res) => {
   try {
     const symbols = US_SECTOR_ETFS.map(s => s.symbol);
@@ -1311,6 +1420,82 @@ app.get('/api/us/screen', async (req, res) => {
       return { ...s, sigs, signal: total, rating: getSignalRating(total) };
     }).sort((a, b) => b.signal - a.signal).slice(0, 20);
     res.json({ theme: themeKey, nameZh: preset.nameZh, total: data.totalCount || 0, stocks: scored });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 个股技术指标：K线/MA/布林带/RSI/MACD
+app.get('/api/stock/technical', async (req, res) => {
+  const symbol = (req.query.symbol || '').replace(/[^A-Z0-9.^=\-]/gi, '').slice(0, 20);
+  if (!symbol) return res.status(400).json({ error: 'symbol required' });
+  const cKey = 'tech:' + symbol;
+  const cached = cacheGet(cKey);
+  if (cached) return res.json(cached);
+  try {
+    const result = await yahooFinance.chart(symbol, {
+      period1: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000),
+      interval: '1d'
+    });
+    const raw = (result.quotes || []).filter(q => q.close != null && q.open != null);
+    const dates = raw.map(q => new Date(q.date).toISOString().slice(0, 10));
+    const opens = raw.map(q => +q.open.toFixed(3));
+    const highs = raw.map(q => +q.high.toFixed(3));
+    const lows = raw.map(q => +q.low.toFixed(3));
+    const closes = raw.map(q => +q.close.toFixed(3));
+    const volumes = raw.map(q => q.volume || 0);
+
+    function sma(arr, p) {
+      return arr.map((_, i) => {
+        if (i < p - 1) return null;
+        return +(arr.slice(i - p + 1, i + 1).reduce((a, b) => a + b, 0) / p).toFixed(3);
+      });
+    }
+    function emaCalc(arr, p) {
+      const k = 2 / (p + 1), out = new Array(arr.length).fill(null);
+      let seed = arr.slice(0, p).reduce((a, b) => a + b, 0) / p;
+      out[p - 1] = +seed.toFixed(4);
+      for (let i = p; i < arr.length; i++) { seed = arr[i] * k + seed * (1 - k); out[i] = +seed.toFixed(4); }
+      return out;
+    }
+
+    const ma20 = sma(closes, 20), ma50 = sma(closes, 50), ma200 = sma(closes, 200);
+    const bb_mid = ma20;
+    const bb_upper = closes.map((_, i) => {
+      if (i < 19) return null;
+      const s = closes.slice(i - 19, i + 1), m = s.reduce((a,b)=>a+b,0)/20;
+      return +(m + 2 * Math.sqrt(s.reduce((a,b)=>a+(b-m)**2,0)/20)).toFixed(3);
+    });
+    const bb_lower = closes.map((_, i) => {
+      if (i < 19) return null;
+      const s = closes.slice(i - 19, i + 1), m = s.reduce((a,b)=>a+b,0)/20;
+      return +(m - 2 * Math.sqrt(s.reduce((a,b)=>a+(b-m)**2,0)/20)).toFixed(3);
+    });
+
+    // RSI(14)
+    const rsi = (() => {
+      const out = new Array(closes.length).fill(null);
+      let ag = 0, al = 0;
+      for (let i = 1; i <= 14; i++) { const d = closes[i]-closes[i-1]; d>0?ag+=d:al-=d; }
+      ag /= 14; al /= 14;
+      out[14] = al === 0 ? 100 : +(100 - 100/(1+ag/al)).toFixed(2);
+      for (let i = 15; i < closes.length; i++) {
+        const d = closes[i]-closes[i-1], g = d>0?d:0, l = d<0?-d:0;
+        ag = (ag*13+g)/14; al = (al*13+l)/14;
+        out[i] = al === 0 ? 100 : +(100 - 100/(1+ag/al)).toFixed(2);
+      }
+      return out;
+    })();
+
+    // MACD(12,26,9)
+    const ema12 = emaCalc(closes, 12), ema26 = emaCalc(closes, 26);
+    const macdLine = ema12.map((v,i) => v!=null&&ema26[i]!=null ? +(v-ema26[i]).toFixed(4) : null);
+    const validIdx = macdLine.findIndex(v => v !== null);
+    const signalRaw = emaCalc(macdLine.slice(validIdx), 9);
+    const signal = new Array(validIdx).fill(null).concat(signalRaw);
+    const histogram = macdLine.map((v,i) => v!=null&&signal[i]!=null ? +(v-signal[i]).toFixed(4) : null);
+
+    const data = { dates, opens, highs, lows, closes, volumes, ma20, ma50, ma200, bb_upper, bb_mid, bb_lower, rsi, macdLine, signal, histogram };
+    cacheSet(cKey, data, 1800);
+    res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
