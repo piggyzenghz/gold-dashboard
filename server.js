@@ -253,6 +253,42 @@ app.get('/api/calendar', async (req, res) => {
 
 // ============ 宏观经济数据 ============
 
+// ============ 宏观实时汇率 & 收益率 ============
+
+let macroLiveCache = null;
+let macroLiveCacheAt = 0;
+const MACRO_LIVE_TTL = 15 * 60 * 1000; // 15分钟缓存
+
+app.get('/api/macro/live', async (req, res) => {
+  if (macroLiveCache && Date.now() - macroLiveCacheAt < MACRO_LIVE_TTL) {
+    return res.json(macroLiveCache);
+  }
+  try {
+    // G8主要货币汇率 + 关键债券收益率
+    const symbols = [
+      'EURUSD=X','GBPUSD=X','USDJPY=X','USDCNY=X','AUDUSD=X','USDCAD=X','USDCHF=X','USDKRW=X',
+      '^TNX','^FVX','^IRX','^TYX'
+    ];
+    const quotes = await yahooFinance.quote(symbols);
+    const fx = {}, yields = {};
+    const fxSymbols = ['EURUSD=X','GBPUSD=X','USDJPY=X','USDCNY=X','AUDUSD=X','USDCAD=X','USDCHF=X','USDKRW=X'];
+    const yieldSymbols = ['^TNX','^FVX','^IRX','^TYX'];
+    for (const q of (Array.isArray(quotes) ? quotes : [quotes])) {
+      const sym = q.symbol;
+      const entry = { price: q.regularMarketPrice, changePct: q.regularMarketChangePercent, change: q.regularMarketChange };
+      if (fxSymbols.includes(sym)) fx[sym] = entry;
+      if (yieldSymbols.includes(sym)) yields[sym] = entry;
+    }
+    macroLiveCache = { fx, yields, updatedAt: new Date().toISOString() };
+    macroLiveCacheAt = Date.now();
+    res.json(macroLiveCache);
+  } catch(e) {
+    // 如有缓存则返回旧缓存
+    if (macroLiveCache) return res.json(macroLiveCache);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/macro', (req, res) => {
   // 主要经济体近4个季度宏观数据 (2025Q1 - 2025Q4)
   // 数据来源：BEA/BLS/Fed/中国统计局/ECB/日本内阁府/各国央行官方发布

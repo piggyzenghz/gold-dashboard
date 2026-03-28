@@ -229,6 +229,21 @@ a{color:var(--gold);text-decoration:none}
 }
 
 /* Macro Dashboard */
+/* 宏观实时汇率 & 收益率 */
+.macro-live-section{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.macro-live-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.macro-live-title{font-size:13px;font-weight:600;color:var(--gold)}
+.macro-live-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px}
+.macro-live-item{background:rgba(0,0,0,0.2);border-radius:8px;padding:8px 10px}
+.macro-live-label{font-size:10px;color:var(--text3);margin-bottom:3px}
+.macro-live-price{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.macro-live-chg{font-size:10px;margin-top:2px;font-variant-numeric:tabular-nums}
+.macro-live-yields{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--card-border)}
+.macro-yield-item{display:flex;flex-direction:column;gap:2px;background:rgba(0,0,0,0.2);border-radius:7px;padding:7px 12px;min-width:100px}
+.macro-yield-label{font-size:10px;color:var(--text3)}
+.macro-yield-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:#3b82f6}
+.macro-yield-chg{font-size:10px;font-variant-numeric:tabular-nums}
+@media(max-width:600px){.macro-live-grid{grid-template-columns:repeat(2,1fr)}}
 .macro-tabs{display:flex;gap:6px;background:rgba(0,0,0,0.2);border-radius:10px;padding:4px;margin-bottom:16px;width:fit-content}
 .macro-tab{padding:8px 20px;border-radius:8px;font-size:14px;color:var(--text2);cursor:pointer;border:none;background:transparent;transition:all .2s;min-height:40px;font-weight:500;display:flex;align-items:center;gap:6px}
 .macro-tab:hover{color:var(--text);background:rgba(255,255,255,0.04)}
@@ -812,6 +827,15 @@ a{color:var(--gold);text-decoration:none}
 
       <!-- ===== Page 5: 宏观数据 ===== -->
       <div class="page" id="page-macro">
+        <!-- 实时汇率 & 收益率 -->
+        <div class="macro-live-section">
+          <div class="macro-live-hdr">
+            <span class="macro-live-title">实时汇率 &amp; 收益率</span>
+            <span id="macro-live-ts" style="font-size:11px;color:var(--text3)">加载中...</span>
+          </div>
+          <div class="macro-live-grid" id="macro-live-fx"></div>
+          <div class="macro-live-yields" id="macro-live-yields"></div>
+        </div>
         <div class="macro-tabs" id="macroTabs">
           <button class="macro-tab active" data-eco="US"><span class="flag">🇺🇸</span>美国</button>
           <button class="macro-tab" data-eco="CN"><span class="flag">🇨🇳</span>中国</button>
@@ -1462,6 +1486,72 @@ async function fetchMacroData() {
     macroData = await resp.json();
     renderMacro(currentEconomy);
   } catch(e) {}
+}
+
+async function fetchMacroLive() {
+  try {
+    const resp = await fetch('/api/macro/live');
+    const data = await resp.json();
+    renderMacroLive(data);
+  } catch(e) {}
+}
+
+function renderMacroLive(data) {
+  const fxEl = document.getElementById('macro-live-fx');
+  const ylEl = document.getElementById('macro-live-yields');
+  const tsEl = document.getElementById('macro-live-ts');
+  if (!fxEl || !ylEl) return;
+
+  const fxMeta = {
+    'EURUSD=X': { label: 'EUR/USD', prefix: '' },
+    'GBPUSD=X': { label: 'GBP/USD', prefix: '' },
+    'USDJPY=X': { label: 'USD/JPY', prefix: '' },
+    'USDCNY=X': { label: 'USD/CNY', prefix: '' },
+    'AUDUSD=X': { label: 'AUD/USD', prefix: '' },
+    'USDCAD=X': { label: 'USD/CAD', prefix: '' },
+    'USDCHF=X': { label: 'USD/CHF', prefix: '' },
+    'USDKRW=X': { label: 'USD/KRW', prefix: '' }
+  };
+  const yieldMeta = {
+    '^IRX': { label: '美联储(3M T-Bill)' },
+    '^FVX': { label: '美债5年期' },
+    '^TNX': { label: '美债10年期' },
+    '^TYX': { label: '美债30年期' }
+  };
+
+  let fxHtml = '';
+  for (const [sym, meta] of Object.entries(fxMeta)) {
+    const d = data.fx && data.fx[sym];
+    if (!d || !d.price) continue;
+    const isUp = (d.changePct || 0) >= 0;
+    const col = isUp ? '#00c853' : '#ef4444';
+    const pctStr = (isUp ? '+' : '') + (d.changePct || 0).toFixed(2) + '%';
+    fxHtml += `<div class="macro-live-item">
+      <div class="macro-live-label">${meta.label}</div>
+      <div class="macro-live-price">${d.price.toFixed(sym.includes('JPY') || sym.includes('KRW') ? 2 : 4)}</div>
+      <div class="macro-live-chg" style="color:${col}">${pctStr}</div>
+    </div>`;
+  }
+  fxEl.innerHTML = fxHtml || '<div style="color:var(--text3);font-size:12px">暂无数据</div>';
+
+  let ylHtml = '';
+  for (const [sym, meta] of Object.entries(yieldMeta)) {
+    const d = data.yields && data.yields[sym];
+    if (!d || !d.price) continue;
+    const isUp = (d.changePct || 0) >= 0;
+    const col = isUp ? '#ef4444' : '#00c853'; // yields up = bad for bonds/gold
+    const pctStr = (isUp ? '+' : '') + (d.changePct || 0).toFixed(2) + '%';
+    ylHtml += `<div class="macro-yield-item">
+      <div class="macro-yield-label">${meta.label}</div>
+      <div class="macro-yield-val">${d.price.toFixed(2)}%</div>
+      <div class="macro-yield-chg" style="color:${col}">${pctStr}</div>
+    </div>`;
+  }
+  ylEl.innerHTML = ylHtml;
+
+  if (tsEl && data.updatedAt) {
+    tsEl.textContent = '更新: ' + new Date(data.updatedAt).toLocaleTimeString('zh-CN', {hour12:false});
+  }
 }
 
 function renderMacro(ecoKey) {
@@ -2421,7 +2511,8 @@ document.getElementById('astock-screen-wrap').addEventListener('click', function
 
 // Init
 if(typeof Notification!=='undefined'&&Notification.permission==='default') Notification.requestPermission().catch(()=>{});
-renderAlerts(); fetchCalendar(); fetchMacroData(); showAiCache(); refreshAll();
+renderAlerts(); fetchCalendar(); fetchMacroData(); fetchMacroLive(); showAiCache(); refreshAll();
+setInterval(fetchMacroLive, 15 * 60 * 1000); // 实时汇率15分钟刷新
 setInterval(refreshAll,30000);
 setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world')},120000);
 window.addEventListener('resize',()=>{
