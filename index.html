@@ -410,8 +410,8 @@ a{color:var(--gold);text-decoration:none}
 .pos-modal-overlay.show{display:flex}
 .pos-modal{background:#1a2535;border:1px solid var(--card-border);border-radius:14px;padding:20px;width:260px;box-shadow:0 16px 48px rgba(0,0,0,0.5)}
 /* 量化预测按钮 & 模态框 */
-.wl-predict-btn{position:absolute;top:6px;right:72px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);border-radius:4px;color:#60a5fa;cursor:pointer;font-size:10px;padding:3px 6px;transition:all .2s;white-space:nowrap;opacity:0}
-.wl-card:hover .wl-predict-btn{opacity:1}
+.wl-predict-btn{position:absolute;top:6px;right:72px;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.35);border-radius:3px;color:#60a5fa;cursor:pointer;font-size:9px;font-weight:600;padding:2px 6px;transition:all .2s;white-space:nowrap;letter-spacing:0.4px}
+.wl-predict-btn:hover{background:rgba(96,165,250,0.25);border-color:rgba(96,165,250,0.7)}
 .ml-modal{background:#1a2535;border:1px solid var(--card-border);border-radius:14px;padding:20px;width:300px;max-height:85vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.5)}
 .ml-direction{font-size:36px;text-align:center;margin:10px 0 4px}
 .ml-confidence{text-align:center;font-size:13px;color:var(--text2);margin-bottom:12px}
@@ -1535,14 +1535,14 @@ function renderMacroLive(data) {
   if (!fxEl || !ylEl) return;
 
   const fxMeta = {
-    'EURUSD=X': { label: 'EUR/USD', prefix: '' },
-    'GBPUSD=X': { label: 'GBP/USD', prefix: '' },
-    'USDJPY=X': { label: 'USD/JPY', prefix: '' },
-    'USDCNY=X': { label: 'USD/CNY', prefix: '' },
-    'AUDUSD=X': { label: 'AUD/USD', prefix: '' },
-    'USDCAD=X': { label: 'USD/CAD', prefix: '' },
-    'USDCHF=X': { label: 'USD/CHF', prefix: '' },
-    'USDKRW=X': { label: 'USD/KRW', prefix: '' }
+    'EURUSD=X': { label: 'EUR/USD', cn: '欧元/美元', prefix: '' },
+    'GBPUSD=X': { label: 'GBP/USD', cn: '英镑/美元', prefix: '' },
+    'USDJPY=X': { label: 'USD/JPY', cn: '美元/日元', prefix: '' },
+    'USDCNY=X': { label: 'USD/CNY', cn: '美元/人民币', prefix: '' },
+    'AUDUSD=X': { label: 'AUD/USD', cn: '澳元/美元', prefix: '' },
+    'USDCAD=X': { label: 'USD/CAD', cn: '美元/加元', prefix: '' },
+    'USDCHF=X': { label: 'USD/CHF', cn: '美元/瑞郎', prefix: '' },
+    'USDKRW=X': { label: 'USD/KRW', cn: '美元/韩元', prefix: '' }
   };
   const yieldMeta = {
     '^IRX': { label: '美联储(3M T-Bill)' },
@@ -1559,7 +1559,7 @@ function renderMacroLive(data) {
     const col = isUp ? '#00c853' : '#ef4444';
     const pctStr = (isUp ? '+' : '') + (d.changePct || 0).toFixed(2) + '%';
     fxHtml += `<div class="macro-live-item">
-      <div class="macro-live-label">${meta.label}</div>
+      <div class="macro-live-label">${meta.label}<span style="display:block;font-size:10px;color:var(--text3);font-weight:400;margin-top:1px">${meta.cn}</span></div>
       <div class="macro-live-price">${d.price.toFixed(sym.includes('JPY') || sym.includes('KRW') ? 2 : 4)}</div>
       <div class="macro-live-chg" style="color:${col}">${pctStr}</div>
     </div>`;
@@ -2318,7 +2318,7 @@ async function fetchWatchlist() {
       html += '<div class="wl-card" style="background:' + bg + ';border-color:' + col.replace('#','rgba(') + '33);position:relative">';
       html += '<button class="wl-del" data-code="' + s.code + '" title="删除">&times;</button>';
       html += '<button class="wl-pos-btn" onclick="posModalOpen(\'' + s.code + '\',\'' + escH(s.name) + '\')" title="编辑持仓">持仓</button>';
-      html += '<button class="wl-predict-btn" onclick="mlModalOpen(\'' + s.code + '\',\'astock\')" title="ML量化预测">🤖</button>';
+      html += '<button class="wl-predict-btn" onclick="mlModalOpen(\'' + s.code + '\',\'astock\')" title="ML量化预测">AI量化</button>';
       html += '<div style="display:flex;align-items:flex-start;justify-content:space-between">';
       html += '<div><div class="wl-name">' + escH(s.name) + '</div><div class="wl-code">' + s.code + '</div></div>';
       html += '</div>';
