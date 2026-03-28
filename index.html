@@ -296,6 +296,60 @@ a{color:var(--gold);text-decoration:none}
 .macro-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03);font-variant-numeric:tabular-nums}
 .macro-table tr:hover td{background:rgba(255,255,255,0.02)}
 .macro-table .val-up{color:var(--green)}.macro-table .val-down{color:var(--red)}
+/* ── 宏观子模块公共标题 ── */
+.macro-sub-hdr{display:flex;align-items:center;gap:8px;margin:18px 0 10px;font-size:13px;font-weight:600;color:var(--text)}
+.macro-sub-hdr::before{content:'';display:inline-block;width:3px;height:14px;background:var(--gold);border-radius:2px}
+/* ── 黄金核心驱动因子 ── */
+.gold-drivers{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.driver-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:16px 18px;transition:border-color .3s,transform .2s,box-shadow .2s;display:flex;flex-direction:column}
+.driver-card:hover{border-color:var(--gold);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,0.3)}
+.driver-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px}
+.driver-value{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.driver-unit{font-size:12px;color:var(--text3);font-weight:400;margin-left:2px}
+.driver-chg{font-size:12px;margin-top:5px;font-variant-numeric:tabular-nums}
+.driver-desc{font-size:10px;color:var(--text3);margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);line-height:1.5;flex:1}
+/* ── 避险情绪仪表盘 ── */
+.fg-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px;transition:border-color .3s,transform .2s}
+.fg-card:hover{border-color:var(--gold);transform:translateY(-1px)}
+.fg-top{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.fg-arc-wrap{flex-shrink:0}
+.fg-score-info{flex:1}
+.fg-score-num{font-size:36px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.fg-score-lbl{font-size:13px;font-weight:600;margin-top:3px}
+.fg-score-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.fg-subs{display:flex;flex-direction:column;gap:9px}
+.fg-sub-row{display:flex;align-items:center;gap:8px;font-size:11px}
+.fg-sub-name{width:60px;color:var(--text2);flex-shrink:0}
+.fg-sub-track{flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden}
+.fg-sub-fill{height:100%;border-radius:3px;transition:width .9s ease-out}
+.fg-sub-val{width:26px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+/* ── ETF持仓 ── */
+.etf-stack{display:flex;flex-direction:column;gap:10px}
+.etf-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:14px 16px;transition:border-color .3s,transform .2s;display:flex;flex-direction:column;gap:8px}
+.etf-card:hover{border-color:var(--gold);transform:translateY(-1px)}
+.etf-top{display:flex;justify-content:space-between;align-items:flex-start}
+.etf-name{font-size:14px;font-weight:700;color:var(--gold)}
+.etf-desc-txt{font-size:10px;color:var(--text3);margin-top:2px}
+.etf-price-wrap{text-align:right}
+.etf-price{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.etf-chg{font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums}
+.etf-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.etf-stat{background:rgba(0,0,0,0.2);border-radius:6px;padding:5px 8px}
+.etf-stat-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
+.etf-stat-val{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+/* ── 央行黄金储备 ── */
+.cb-wrap{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px;margin-top:14px}
+.cb-table{width:100%;border-collapse:collapse;font-size:12px}
+.cb-table th{text-align:left;padding:8px 12px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--card-border);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.cb-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.03);font-variant-numeric:tabular-nums}
+.cb-table tr:last-child td{border-bottom:none}
+.cb-table tr:hover td{background:rgba(255,255,255,0.02)}
+.cb-bar-cell{display:flex;align-items:center;gap:6px}
+.cb-bar-bg{flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden}
+.cb-bar-fill{height:100%;border-radius:3px;background:var(--gold);opacity:.75}
+.cb-rank{font-size:11px;color:var(--text3);width:18px}
+@media(max-width:1000px){.gold-drivers{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.gold-drivers{grid-template-columns:1fr 1fr}.macro-fg-etf-row{flex-direction:column}}
 .macro-updated{font-size:11px;color:var(--text3);text-align:right;margin-top:12px}
 
 @media(max-width:1200px){.market-row{grid-template-columns:repeat(3,1fr)}.tool-grid{grid-template-columns:1fr}.macro-grid{grid-template-columns:repeat(2,1fr)}.gauge-row{grid-template-columns:repeat(3,1fr)}}
@@ -1046,11 +1100,82 @@ a{color:var(--gold);text-decoration:none}
           <button class="macro-tab" data-eco="JP"><span class="flag">🇯🇵</span>日本</button>
         </div>
         <div class="macro-grid" id="macroGrid"></div>
-        <div class="macro-table" id="macroTable">
-          <h3>季度数据对比</h3>
-          <div id="macroTableBody"></div>
-        </div>
+
         <div class="macro-updated" id="macroUpdated"></div>
+
+        <!-- ══ 黄金核心驱动因子 ══ -->
+        <div class="macro-sub-hdr">黄金核心驱动因子</div>
+        <div class="gold-drivers" id="goldDrivers">
+          <div class="driver-card" id="drv-realrate">
+            <div class="driver-label">实际利率</div>
+            <div class="driver-value" id="drv-realrate-val">--<span class="driver-unit">%</span></div>
+            <div class="driver-chg" id="drv-realrate-sub" style="color:var(--text3)">名义利率 -- | 通胀 --</div>
+            <div class="driver-desc">名义利率 − 通胀预期。实际利率越低/为负，持有黄金机会成本越低，金价倾向走强。</div>
+          </div>
+          <div class="driver-card" id="drv-vix">
+            <div class="driver-label">VIX 恐慌指数</div>
+            <div class="driver-value" id="drv-vix-val">--</div>
+            <div class="driver-chg" id="drv-vix-chg" style="color:var(--text3)">--</div>
+            <div class="driver-desc">市场恐慌程度。VIX &gt;20 避险情绪升温；&gt;30 极度恐慌。高 VIX 通常利好黄金需求。</div>
+          </div>
+          <div class="driver-card" id="drv-dxy">
+            <div class="driver-label">美元指数 DXY</div>
+            <div class="driver-value" id="drv-dxy-val">--</div>
+            <div class="driver-chg" id="drv-dxy-chg" style="color:var(--text3)">--</div>
+            <div class="driver-desc">美元强弱与黄金高度负相关。美元走弱时，黄金以美元计价的吸引力上升，多数情况利好金价。</div>
+          </div>
+          <div class="driver-card" id="drv-copper">
+            <div class="driver-label">铜金比 × 10³</div>
+            <div class="driver-value" id="drv-copper-val">--</div>
+            <div class="driver-chg" id="drv-copper-sub" style="color:var(--text3)">铜 -- | 金 --</div>
+            <div class="driver-desc">铜金比上升 → 市场偏好工业/经济周期资产；下降 → 避险黄金相对走强，经济预期降温。</div>
+          </div>
+        </div>
+
+        <!-- ══ 避险情绪 + ETF ══ -->
+        <div style="display:flex;gap:14px;margin-top:14px" class="macro-fg-etf-row">
+          <!-- 左：避险情绪仪表盘 -->
+          <div class="fg-card" style="flex:1;min-width:0">
+            <div class="macro-sub-hdr" style="margin-top:0;margin-bottom:14px">黄金避险情绪指数</div>
+            <div class="fg-top">
+              <div class="fg-arc-wrap">
+                <svg id="fg-arc-svg" viewBox="0 0 120 72" width="120" height="72">
+                  <path d="M12,65 A48,48 0 0,1 108,65" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10" stroke-linecap="round"/>
+                  <path id="fg-arc-fill" d="M12,65 A48,48 0 0,1 108,65" fill="none" stroke="#f0b90b" stroke-width="10" stroke-linecap="round"
+                    stroke-dasharray="150.8" stroke-dashoffset="75.4"/>
+                </svg>
+              </div>
+              <div class="fg-score-info">
+                <div class="fg-score-num" id="fg-score-num">--</div>
+                <div class="fg-score-lbl" id="fg-score-lbl">加载中</div>
+                <div class="fg-score-sub">0 = 强风险偏好 &nbsp;·&nbsp; 100 = 极度避险</div>
+              </div>
+            </div>
+            <div class="fg-subs" id="fg-subs">
+              <div class="fg-sub-row"><span class="fg-sub-name">VIX水平</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
+              <div class="fg-sub-row"><span class="fg-sub-name">实际利率</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
+              <div class="fg-sub-row"><span class="fg-sub-name">美元动量</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
+            </div>
+          </div>
+          <!-- 右：ETF持仓 -->
+          <div style="flex:1;min-width:0">
+            <div class="macro-sub-hdr" style="margin-top:0;margin-bottom:10px">黄金 ETF 持仓动向</div>
+            <div class="etf-stack" id="etfStack">
+              <div class="etf-card"><div style="color:var(--text3);font-size:12px">加载中...</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══ 央行黄金储备 ══ -->
+        <div class="macro-sub-hdr">全球央行黄金储备</div>
+        <div class="cb-wrap">
+          <table class="cb-table">
+            <thead><tr><th></th><th>央行</th><th>储备量 (吨)</th><th>占外储比例</th><th>持仓规模</th></tr></thead>
+            <tbody id="cbTableBody"></tbody>
+          </table>
+          <div style="font-size:10px;color:var(--text3);margin-top:10px;text-align:right">数据来源: 世界黄金协会 · 2025年Q4</div>
+        </div>
+
       </div>
 
       <!-- ===== Page 6: A股看板 ===== -->
@@ -1994,30 +2119,6 @@ function renderMacro(ecoKey) {
   }
   grid.innerHTML = cardsHtml;
 
-  // Render comparison table
-  let tableHtml = '<table><thead><tr><th>指标</th>';
-  quarters.forEach(q => tableHtml += `<th>${q}</th>`);
-  tableHtml += '<th>趋势</th></tr></thead><tbody>';
-
-  for (const [key, ind] of Object.entries(eco.indicators)) {
-    tableHtml += `<tr><td style="color:var(--text2)">${ind.name}</td>`;
-    ind.values.forEach((v, i) => {
-      let cls = '';
-      if (i > 0) {
-        const diff = v - ind.values[i-1];
-        if (Math.abs(diff) >= 0.05) cls = (ind.inverse ? diff < 0 : diff > 0) ? 'val-up' : 'val-down';
-      }
-      tableHtml += `<td class="${cls}">${v}${ind.unit}</td>`;
-    });
-    // Trend arrow
-    const first = ind.values[0], last = ind.values[ind.values.length-1];
-    const trendDiff = last - first;
-    const trendIcon = Math.abs(trendDiff) < 0.05 ? '→' : (trendDiff > 0 ? '↗' : '↘');
-    const trendColor = Math.abs(trendDiff) < 0.05 ? 'var(--text3)' : ((ind.inverse ? trendDiff < 0 : trendDiff > 0) ? 'var(--green)' : 'var(--red)');
-    tableHtml += `<td style="color:${trendColor};font-size:16px">${trendIcon}</td></tr>`;
-  }
-  tableHtml += '</tbody></table>';
-  tableBody.innerHTML = tableHtml;
 
   document.getElementById('macroUpdated').textContent = `数据更新日期: ${macroData.updated} · 数据来源: 各国统计局/央行`;
 
@@ -2030,6 +2131,174 @@ document.getElementById('macroTabs')?.addEventListener('click', e => {
   const tab = e.target.closest('.macro-tab');
   if (tab) renderMacro(tab.dataset.eco);
 });
+
+// ===== 宏观驱动因子 =====
+
+async function fetchMacroDrivers() {
+  try {
+    const d = await fetch('/api/macro/drivers').then(r => r.json());
+    renderMacroDrivers(d);
+  } catch(e) { console.warn('drivers fetch error', e); }
+}
+
+function renderMacroDrivers(d) {
+  // 实际利率
+  const rrEl = document.getElementById('drv-realrate-val');
+  const rrSub = document.getElementById('drv-realrate-sub');
+  if (d.realRate && rrEl) {
+    const v = d.realRate.value;
+    const c = v < 0 ? 'var(--green)' : v < 1.5 ? 'var(--gold)' : 'var(--red)';
+    rrEl.innerHTML = `<span style="color:${c}">${v > 0 ? '+' : ''}${v}</span><span class="driver-unit">%</span>`;
+    rrSub.textContent = `名义利率 ${d.realRate.nominalYield}% | 通胀 ${d.realRate.cpi}%`;
+  }
+  // VIX
+  const vEl = document.getElementById('drv-vix-val');
+  const vChg = document.getElementById('drv-vix-chg');
+  if (d.vix && vEl) {
+    const v = d.vix.value;
+    const c = v > 30 ? '#ff3d57' : v > 20 ? '#ff9500' : v > 15 ? '#f0b90b' : '#4caf50';
+    vEl.innerHTML = `<span style="color:${c}">${v.toFixed(2)}</span>`;
+    const sign = d.vix.changePct >= 0 ? '+' : '';
+    vChg.innerHTML = `<span style="color:${d.vix.changePct >= 0 ? 'var(--red)':'var(--green)'}">${sign}${d.vix.changePct.toFixed(2)}%</span>`;
+    vChg.innerHTML += `<span style="color:var(--text3);margin-left:6px">${v < 15 ? '低恐慌' : v < 20 ? '温和' : v < 30 ? '偏高' : '极度恐慌'}</span>`;
+  }
+  // DXY
+  const dEl = document.getElementById('drv-dxy-val');
+  const dChg = document.getElementById('drv-dxy-chg');
+  if (d.dxy && dEl) {
+    dEl.textContent = d.dxy.value.toFixed(2);
+    const pct = d.dxy.changePct;
+    const sign = pct >= 0 ? '+' : '';
+    const c = pct >= 0 ? 'var(--red)' : 'var(--green)'; // DXY上涨对金价偏利空
+    dChg.innerHTML = `<span style="color:${c}">${sign}${pct.toFixed(2)}%</span><span style="color:var(--text3);margin-left:6px">${pct > 0.5 ? '强势' : pct < -0.5 ? '走弱' : '震荡'}</span>`;
+  }
+  // 铜金比
+  const cEl = document.getElementById('drv-copper-val');
+  const cSub = document.getElementById('drv-copper-sub');
+  if (d.copperGold && cEl) {
+    cEl.textContent = d.copperGold.value.toFixed(3);
+    cSub.textContent = `铜 $${d.copperGold.copper.toFixed(2)}/lb | 金 $${d.copperGold.gold.toFixed(0)}/oz`;
+  }
+  // 避险情绪仪表盘
+  if (d.fearGreed) {
+    const fg = d.fearGreed;
+    document.getElementById('fg-score-num').textContent = fg.composite;
+    document.getElementById('fg-score-num').style.color = fg.sentimentColor;
+    document.getElementById('fg-score-lbl').textContent = fg.sentiment;
+    document.getElementById('fg-score-lbl').style.color = fg.sentimentColor;
+    // Arc: perimeter of half-circle r=48 = π×48 ≈ 150.8
+    const perim = 150.8;
+    const offset = perim * (1 - fg.composite / 100);
+    const arc = document.getElementById('fg-arc-fill');
+    if (arc) { arc.style.stroke = fg.sentimentColor; arc.setAttribute('stroke-dashoffset', offset.toFixed(1)); }
+    // Sub bars
+    const subs = document.getElementById('fg-subs');
+    if (subs) {
+      const rows = subs.querySelectorAll('.fg-sub-row');
+      const items = [
+        { name: 'VIX水平', val: fg.subs.vixScore },
+        { name: '实际利率', val: fg.subs.realRateScore },
+        { name: '美元动量', val: fg.subs.dxyScore }
+      ];
+      rows.forEach((row, i) => {
+        if (!items[i]) return;
+        const fill = row.querySelector('.fg-sub-fill');
+        const valEl = row.querySelector('.fg-sub-val');
+        const c = items[i].val >= 65 ? '#ff3d57' : items[i].val >= 42 ? '#f0b90b' : '#4caf50';
+        if (fill) { fill.style.width = items[i].val + '%'; fill.style.background = c; }
+        if (valEl) { valEl.textContent = items[i].val; valEl.style.color = c; }
+      });
+    }
+  }
+}
+
+async function fetchMacroEtf() {
+  try {
+    const list = await fetch('/api/macro/etf').then(r => r.json());
+    renderMacroEtf(list);
+  } catch(e) { console.warn('etf fetch error', e); }
+}
+
+function renderMacroEtf(list) {
+  const meta = {
+    GLD: { desc: 'SPDR Gold Shares · 最大黄金ETF · 约940吨', holdingTons: 940 },
+    IAU: { desc: 'iShares Gold Trust · 约460吨', holdingTons: 460 }
+  };
+  const container = document.getElementById('etfStack');
+  if (!container || !list) return;
+  container.innerHTML = list.map(e => {
+    const m = meta[e.symbol] || {};
+    const pct = e.changePct;
+    const pctSign = pct >= 0 ? '+' : '';
+    const pctColor = pct >= 0 ? 'var(--green)' : 'var(--red)';
+    const range52Pct = e.high52 > e.low52 ? ((e.price - e.low52) / (e.high52 - e.low52) * 100).toFixed(0) : 50;
+    const aum = e.marketCap ? (e.marketCap / 1e9).toFixed(1) + 'B' : '--';
+    const vol = e.volume ? (e.volume / 1e6).toFixed(1) + 'M' : '--';
+    return `<div class="etf-card">
+      <div class="etf-top">
+        <div>
+          <div class="etf-name">${e.symbol}</div>
+          <div class="etf-desc-txt">${m.desc || ''}</div>
+        </div>
+        <div class="etf-price-wrap">
+          <div class="etf-price">$${e.price?.toFixed(2) || '--'}</div>
+          <div class="etf-chg" style="color:${pctColor}">${pctSign}${pct?.toFixed(2)}%&nbsp;(${pct >= 0 ? '+' : ''}${e.change?.toFixed(2) || '--'})</div>
+        </div>
+      </div>
+      <div class="etf-stats-row">
+        <div class="etf-stat"><div class="etf-stat-lbl">AUM</div><div class="etf-stat-val">$${aum}</div></div>
+        <div class="etf-stat"><div class="etf-stat-lbl">成交量</div><div class="etf-stat-val">${vol}</div></div>
+        <div class="etf-stat"><div class="etf-stat-lbl">52W位置</div><div class="etf-stat-val">${range52Pct}%</div></div>
+      </div>
+      <div style="margin-top:6px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:3px">
+          <span>52W低 $${e.low52?.toFixed(2)}</span><span>52W高 $${e.high52?.toFixed(2)}</span>
+        </div>
+        <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${range52Pct}%;background:var(--gold);border-radius:2px;opacity:.8"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderCbReserves() {
+  const reserves = [
+    { rank:1, flag:'🇺🇸', name:'美国',   tons:8133.5, pct:72.4 },
+    { rank:2, flag:'🇩🇪', name:'德国',   tons:3351.5, pct:73.4 },
+    { rank:3, flag:'🇮🇹', name:'意大利', tons:2452.0, pct:68.9 },
+    { rank:4, flag:'🇫🇷', name:'法国',   tons:2437.0, pct:70.3 },
+    { rank:5, flag:'🇷🇺', name:'俄罗斯', tons:2333.0, pct:28.8 },
+    { rank:6, flag:'🇨🇳', name:'中国',   tons:2280.0, pct:5.1  },
+    { rank:7, flag:'🇨🇭', name:'瑞士',   tons:1039.9, pct:7.4  },
+    { rank:8, flag:'🇮🇳', name:'印度',   tons:854.7,  pct:9.6  },
+    { rank:9, flag:'🇯🇵', name:'日本',   tons:845.9,  pct:4.1  },
+    { rank:10,flag:'🇳🇱', name:'荷兰',   tons:612.5,  pct:66.8 }
+  ];
+  const maxTons = reserves[0].tons;
+  const tbody = document.getElementById('cbTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = reserves.map(r => {
+    const barW = (r.tons / maxTons * 100).toFixed(1);
+    const pctColor = r.pct >= 60 ? 'var(--green)' : r.pct >= 20 ? 'var(--gold)' : 'var(--text3)';
+    return `<tr>
+      <td><span class="cb-rank">${r.rank}</span></td>
+      <td><span style="margin-right:6px">${r.flag}</span>${r.name}</td>
+      <td>
+        <div class="cb-bar-cell">
+          <span style="width:54px;flex-shrink:0">${r.tons.toLocaleString()}</span>
+          <div class="cb-bar-bg"><div class="cb-bar-fill" style="width:${barW}%"></div></div>
+        </div>
+      </td>
+      <td style="color:${pctColor}">${r.pct}%</td>
+      <td>
+        <div style="height:4px;width:80px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;display:inline-block">
+          <div style="height:100%;width:${barW}%;background:var(--gold);opacity:.7;border-radius:2px"></div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
 
 // ===== Overlay =====
 const overlayColors={'GC=F':'#f0b90b','SI=F':'#c0c0c0','CL=F':'#e74c3c','DX-Y.NYB':'#3498db','^GSPC':'#2ecc71','^IXIC':'#9b59b6','^N225':'#e67e22','000001.SS':'#1abc9c'};
@@ -3078,6 +3347,9 @@ if(typeof Notification!=='undefined'&&Notification.permission==='default') Notif
 async function init() {
   await initConfig();
   renderAlerts(); fetchCalendar(); fetchMacroData(); fetchMacroLive(); showAiCache(); showScenarioCache(); refreshAll();
+  fetchMacroDrivers(); fetchMacroEtf(); renderCbReserves();
+  setInterval(fetchMacroDrivers, 5 * 60 * 1000);
+  setInterval(fetchMacroEtf, 5 * 60 * 1000);
   setInterval(fetchMacroLive, 15 * 60 * 1000);
   setInterval(refreshAll, 30000);
   setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world');}, 120000);

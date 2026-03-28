@@ -478,6 +478,72 @@ app.get('/api/macro', (req, res) => {
   res.json({ quarters, economies: data, updated: '2026-03-26' });
 });
 
+// ============ 宏观驱动因子 & ETF ============
+
+app.get('/api/macro/drivers', async (req, res) => {
+  try {
+    const data = await withCache('macro:drivers', 300, async () => {
+      const quotes = await yahooFinance.quote(['^VIX', '^TNX', 'DX-Y.NYB', 'HG=F', 'GC=F']);
+      const q = {};
+      quotes.forEach(r => { q[r.symbol] = r; });
+
+      const CPI = 2.7;
+      const vixVal  = q['^VIX']?.regularMarketPrice       || 20;
+      const tnxVal  = q['^TNX']?.regularMarketPrice        || 4.3;
+      const dxyChgPct = q['DX-Y.NYB']?.regularMarketChangePercent || 0;
+      const dxyVal  = q['DX-Y.NYB']?.regularMarketPrice    || 103;
+      const copperVal = q['HG=F']?.regularMarketPrice      || 4.5;
+      const goldVal = q['GC=F']?.regularMarketPrice        || 3100;
+
+      const realRate = parseFloat((tnxVal - CPI).toFixed(2));
+      const copperGoldRatio = parseFloat((copperVal / goldVal * 1000).toFixed(4));
+
+      // 子分数 0-100，越高 = 对金价越利好（避险越强）
+      const vixScore      = Math.min(100, Math.max(0, (vixVal - 12) / 30 * 100));
+      const realRateScore = Math.min(100, Math.max(0, (2.5 - realRate) / 4 * 100));
+      const dxyScore      = Math.min(100, Math.max(0, 50 - dxyChgPct * 15));
+      const composite     = Math.round(vixScore * 0.4 + realRateScore * 0.35 + dxyScore * 0.25);
+
+      let sentiment, sentimentColor;
+      if (composite >= 75) { sentiment = '极度避险'; sentimentColor = '#ff3d57'; }
+      else if (composite >= 58) { sentiment = '避险升温'; sentimentColor = '#ff9500'; }
+      else if (composite >= 42) { sentiment = '中性震荡'; sentimentColor = '#f0b90b'; }
+      else if (composite >= 25) { sentiment = '风险偏好'; sentimentColor = '#4caf50'; }
+      else { sentiment = '强风险偏好'; sentimentColor = '#00c853'; }
+
+      return {
+        vix:       { value: vixVal, change: q['^VIX']?.regularMarketChange, changePct: q['^VIX']?.regularMarketChangePercent },
+        realRate:  { value: realRate, nominalYield: tnxVal, cpi: CPI },
+        dxy:       { value: dxyVal, change: q['DX-Y.NYB']?.regularMarketChange, changePct: dxyChgPct },
+        copperGold:{ value: copperGoldRatio, copper: copperVal, gold: goldVal },
+        fearGreed: { composite, sentiment, sentimentColor,
+          subs: { vixScore: Math.round(vixScore), realRateScore: Math.round(realRateScore), dxyScore: Math.round(dxyScore) }
+        }
+      };
+    });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/macro/etf', async (req, res) => {
+  try {
+    const data = await withCache('macro:etf', 300, async () => {
+      const quotes = await yahooFinance.quote(['GLD', 'IAU']);
+      return quotes.map(r => ({
+        symbol: r.symbol,
+        price:     r.regularMarketPrice,
+        change:    r.regularMarketChange,
+        changePct: r.regularMarketChangePercent,
+        volume:    r.regularMarketVolume,
+        high52:    r.fiftyTwoWeekHigh,
+        low52:     r.fiftyTwoWeekLow,
+        marketCap: r.marketCap
+      }));
+    });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ============ AI 分析 (DeepSeek) ============
 
 app.post('/api/ai/analyze', async (req, res) => {
