@@ -65,14 +65,37 @@ app.get('/api/chart/:symbol', async (req, res) => {
 
 function getStartDate(range) {
   const now = new Date();
+  const CST_OFFSET = 8 * 60 * 60 * 1000;
+
+  // CST day index (integer days since epoch, in CST timezone)
+  const nowCSTday = Math.floor((now.getTime() + CST_OFFSET) / 86400000);
+
+  // CST midnight (as UTC Date) for a given CST day index
+  function cstDayStart(d) { return new Date(d * 86400000 - CST_OFFSET); }
+
+  // Day-of-week in CST for a given CST day index (0=Sun, 6=Sat)
+  function cstDOW(d) { return new Date(d * 86400000).getUTCDay(); }
+
+  // Find the most recent weekday on or before dayIdx
+  function lastWeekday(d) {
+    while (cstDOW(d) === 0 || cstDOW(d) === 6) d--;
+    return d;
+  }
+
   switch (range) {
     case '1d': {
-      // 使用 CST (UTC+8) 当日 00:00 作为起点，避免包含昨日盘面
-      const CST_OFFSET = 8 * 60 * 60 * 1000;
-      const todayCST = new Date(Math.floor((now.getTime() + CST_OFFSET) / 86400000) * 86400000 - CST_OFFSET);
-      return todayCST;
+      // 最近一个交易日(周一至周五)的 CST 00:00，周末自动退到上周五
+      return cstDayStart(lastWeekday(nowCSTday));
     }
-    case '5d': return new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000); // 8日确保涵盖5个交易日
+    case '5d': {
+      // 往前数 5 个交易日(周一至周五)，取第 5 个交易日的 CST 00:00 为起点
+      let count = 0, d = nowCSTday;
+      while (count < 5) {
+        d--;
+        if (cstDOW(d) !== 0 && cstDOW(d) !== 6) count++;
+      }
+      return cstDayStart(d);
+    }
     case '1mo': return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     case '3mo': return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     case '1y': return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
