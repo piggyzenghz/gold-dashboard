@@ -66,8 +66,13 @@ app.get('/api/chart/:symbol', async (req, res) => {
 function getStartDate(range) {
   const now = new Date();
   switch (range) {
-    case '1d': return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    case '5d': return new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+    case '1d': {
+      // 使用 CST (UTC+8) 当日 00:00 作为起点，避免包含昨日盘面
+      const CST_OFFSET = 8 * 60 * 60 * 1000;
+      const todayCST = new Date(Math.floor((now.getTime() + CST_OFFSET) / 86400000) * 86400000 - CST_OFFSET);
+      return todayCST;
+    }
+    case '5d': return new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000); // 8日确保涵盖5个交易日
     case '1mo': return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     case '3mo': return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     case '1y': return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
