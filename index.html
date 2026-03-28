@@ -1946,7 +1946,11 @@ function posModalClear() {
   posSave(); posModalClose();
   fetchWatchlist(); fetchUSWatchlist();
 }
-document.getElementById('pos-modal-overlay').addEventListener('click', function(e){ if(e.target===this) posModalClose(); });
+// pos-modal click-outside (element rendered after script, bind on DOMContentLoaded)
+document.addEventListener('DOMContentLoaded', function() {
+  var overlay = document.getElementById('pos-modal-overlay');
+  if (overlay) overlay.addEventListener('click', function(e){ if(e.target===this) posModalClose(); });
+});
 
 function wlAdd(raw) {
   var code = String(raw).replace(/\D/g, '').slice(-6).padStart(6, '0');
