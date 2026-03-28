@@ -2103,7 +2103,7 @@ document.getElementById('astock-screen-wrap').addEventListener('click', function
 });
 
 // Init
-if(Notification.permission==='default') Notification.requestPermission();
+if(typeof Notification!=='undefined'&&Notification.permission==='default') Notification.requestPermission().catch(()=>{});
 renderAlerts(); fetchCalendar(); fetchMacroData(); showAiCache(); refreshAll();
 setInterval(refreshAll,30000);
 setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world')},120000);
