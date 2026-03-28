@@ -1521,7 +1521,7 @@ db.exec(`
   );
 `);
 
-const OPENROUTER_API_KEY = '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';
+const OPENROUTER_API_KEY = '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';
 const OPENROUTER_MODEL = 'xiaomi/mimo-v2-pro';
 const PYTHON_BIN = '/usr/bin/python3';
 const RESEARCH_PY = path.join(__dirname, 'research_data.py');
