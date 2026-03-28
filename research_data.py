@@ -82,6 +82,25 @@ def calc_support_resistance(df):
     except:
         return {'support1': None, 'support2': None, 'resistance1': None, 'resistance2': None}
 
+def parse_cn_num(s):
+    """解析中文数字字符串，如 '1.47亿'→1.47, '54.27%'→54.27, '1,234'→1234"""
+    if not s or s is False or str(s) in ('False', 'None', '--', ''):
+        return None
+    s = str(s).strip().replace(',', '')
+    try:
+        if '亿' in s:
+            return round(float(s.replace('亿', '')), 4)
+        elif '万' in s:
+            return round(float(s.replace('万', '')) / 10000, 4)
+        elif '%' in s:
+            return round(float(s.replace('%', '')), 4)
+        else:
+            v = float(s)
+            return round(v, 4) if not (np.isnan(v) or np.isinf(v)) else None
+    except:
+        return None
+
+
 def fetch_cn(symbol):
     import akshare as ak
 
@@ -101,169 +120,127 @@ def fetch_cn(symbol):
         'peers_data': []
     }
 
-    # 基本信息
+    # 1. 实时行情（PE/PB/市值/名称）—— stock_zh_a_spot_em 最稳定
+    spot_df = None
+    try:
+        spot_df = ak.stock_zh_a_spot_em()
+        spot_rows = spot_df[spot_df['代码'] == symbol]
+        if len(spot_rows) > 0:
+            sr = spot_rows.iloc[0]
+            result['name'] = str(sr.get('名称', symbol))
+            result['indicators'] = {
+                'pe':         safe(lambda r=sr: round(float(r['市盈率-动态']), 2)),
+                'pe_ttm':     safe(lambda r=sr: round(float(r['市盈率-动态']), 2)),
+                'pb':         safe(lambda r=sr: round(float(r['市净率']), 2)),
+                'market_cap': safe(lambda r=sr: round(float(r['总市值']) / 1e8, 2)),
+                'current_price': safe(lambda r=sr: round(float(r['最新价']), 2)),
+                'date': datetime.now().strftime('%Y-%m-%d')
+            }
+    except:
+        result['name'] = symbol
+
+    # 2. 基本信息（行业/上市日期等）
     try:
         info_df = ak.stock_individual_info_em(symbol=symbol)
         info = dict(zip(info_df.iloc[:, 0], info_df.iloc[:, 1]))
-        result['name'] = str(info.get('股票简称', info.get('名称', symbol)))
+        if not result['name'] or result['name'] == symbol:
+            result['name'] = str(info.get('股票简称', info.get('名称', symbol)))
         result['industry'] = str(info.get('行业', ''))
         result['basic_info'] = {k: str(v) for k, v in info.items()}
     except:
-        result['name'] = symbol
-        result['industry'] = ''
+        pass
 
-    # 利润表 (近5年)
+    # 3. 财务摘要（按年度）—— stock_financial_abstract_ths 稳定可用
     try:
-        profit_df = ak.stock_profit_sheet_by_report_em(symbol=symbol)
-        profit_df = profit_df.sort_values('REPORT_DATE', ascending=False).head(5)
+        fin_df = ak.stock_financial_abstract_ths(symbol=symbol, indicator='按年度')
+        fin_df = fin_df.sort_values('报告期', ascending=False).head(5)
         rows = []
-        for _, row in profit_df.iterrows():
-            def g(col, r=row):
-                v = r.get(col)
-                if v is None or (isinstance(v, float) and np.isnan(v)):
-                    return None
-                try:
-                    return round(float(v) / 1e8, 2)
-                except:
-                    return None
+        for _, row in fin_df.iterrows():
             rows.append({
-                'period': str(row.get('REPORT_DATE', ''))[:10],
-                'revenue': g('OPERATE_INCOME'),
-                'net_profit': g('PARENT_NETPROFIT'),
-                'eps': safe(lambda r=row: round(float(r.get('BASIC_EPS', 0) or 0), 4))
+                'period':       str(int(row['报告期'])),
+                'revenue':      parse_cn_num(row.get('营业总收入')),
+                'net_profit':   parse_cn_num(row.get('净利润')),
+                'eps':          parse_cn_num(row.get('基本每股收益')),
+                'roe':          parse_cn_num(row.get('净资产收益率')),
+                'gross_margin': parse_cn_num(row.get('销售毛利率')),
+                'debt_ratio':   parse_cn_num(row.get('资产负债率')),
+                'current_ratio':parse_cn_num(row.get('流动比率')),
             })
         result['financials'] = rows
+        # balance 从财务摘要的负债率/流动比等字段构造（无独立资产负债表接口）
+        result['balance'] = [{'period': r['period'], 'debt_ratio': r['debt_ratio'],
+                               'current_ratio': r['current_ratio'], 'roe': r['roe']} for r in rows[:3]]
     except:
         pass
 
-    # 资产负债表
-    try:
-        bal_df = ak.stock_balance_sheet_by_report_em(symbol=symbol)
-        bal_df = bal_df.sort_values('REPORT_DATE', ascending=False).head(3)
-        rows = []
-        for _, row in bal_df.iterrows():
-            def g(col, r=row):
-                v = r.get(col)
-                if v is None or (isinstance(v, float) and np.isnan(v)):
-                    return None
-                try:
-                    return round(float(v) / 1e8, 2)
-                except:
-                    return None
-            rows.append({
-                'period': str(row.get('REPORT_DATE', ''))[:10],
-                'total_assets': g('TOTAL_ASSETS'),
-                'total_liabilities': g('TOTAL_LIABILITIES'),
-                'equity': g('TOTAL_EQUITY'),
-                'current_assets': g('TOTAL_CURRENT_ASSETS'),
-                'current_liabilities': g('TOTAL_CURRENT_LIABILITIES'),
-            })
-        result['balance'] = rows
-    except:
-        pass
-
-    # 估值指标
-    try:
-        ind_df = ak.stock_a_indicator_lg(symbol=symbol)
-        ind_df = ind_df.sort_values('trade_date', ascending=False).head(1)
-        if len(ind_df) > 0:
-            row = ind_df.iloc[0]
-            def gi(col):
-                v = row.get(col)
-                if v is None or (isinstance(v, float) and np.isnan(v)):
-                    return None
-                try:
-                    return round(float(v), 4)
-                except:
-                    return None
-            result['indicators'] = {
-                'pe': gi('pe'),
-                'pe_ttm': gi('pe_ttm'),
-                'pb': gi('pb'),
-                'ps': gi('ps'),
-                'roe': gi('roe'),
-                'date': str(row.get('trade_date', ''))
-            }
-    except:
-        pass
-
-    # 月K线 (近12个月)
+    # 4. 月K线 (近13个月)
     try:
         hist_df = ak.stock_zh_a_hist(symbol=symbol, period='monthly', adjust='qfq')
         hist_df = hist_df.tail(13)
-        hist_df.columns = [c.lower().replace(' ', '_') for c in hist_df.columns]
-        # 找到正确的列名
-        date_col = next((c for c in hist_df.columns if '日期' in c or 'date' in c), hist_df.columns[0])
-        close_col = next((c for c in hist_df.columns if '收盘' in c or 'close' in c), None)
-        open_col = next((c for c in hist_df.columns if '开盘' in c or 'open' in c), None)
-        high_col = next((c for c in hist_df.columns if '最高' in c or 'high' in c), None)
-        low_col = next((c for c in hist_df.columns if '最低' in c or 'low' in c), None)
-        vol_col = next((c for c in hist_df.columns if '成交量' in c or 'volume' in c), None)
-
-        # 重命名以统一处理
-        rename_map = {}
-        if date_col: rename_map[date_col] = 'date'
-        if close_col: rename_map[close_col] = 'close'
-        if open_col: rename_map[open_col] = 'open'
-        if high_col: rename_map[high_col] = 'high'
-        if low_col: rename_map[low_col] = 'low'
-        if vol_col: rename_map[vol_col] = 'volume'
-        hist_df = hist_df.rename(columns=rename_map)
-
+        # AkShare 返回中文列名，统一映射
+        col_map = {}
+        for c in hist_df.columns:
+            if '日期' in c: col_map[c] = 'date'
+            elif '收盘' in c: col_map[c] = 'close'
+            elif '开盘' in c: col_map[c] = 'open'
+            elif '最高' in c: col_map[c] = 'high'
+            elif '最低' in c: col_map[c] = 'low'
+            elif '成交量' in c: col_map[c] = 'volume'
+        hist_df = hist_df.rename(columns=col_map)
         monthly = []
         for _, row in hist_df.iterrows():
             monthly.append({
-                'date': str(row.get('date', ''))[:10],
-                'close': safe(lambda r=row: round(float(r.get('close', 0)), 2)),
-                'open': safe(lambda r=row: round(float(r.get('open', 0)), 2)),
-                'high': safe(lambda r=row: round(float(r.get('high', 0)), 2)),
-                'low': safe(lambda r=row: round(float(r.get('low', 0)), 2)),
+                'date':   str(row.get('date', ''))[:10],
+                'close':  safe(lambda r=row: round(float(r.get('close', 0)), 2)),
+                'open':   safe(lambda r=row: round(float(r.get('open', 0)), 2)),
+                'high':   safe(lambda r=row: round(float(r.get('high', 0)), 2)),
+                'low':    safe(lambda r=row: round(float(r.get('low', 0)), 2)),
                 'volume': safe(lambda r=row: int(r.get('volume', 0)))
             })
         result['monthly_price'] = monthly
-    except Exception as e:
+    except:
         pass
 
-    # 技术指标（用yfinance补充日K）
+    # 5. 技术指标（yfinance 日K计算）
     try:
         import yfinance as yf
         suffix = '.SZ' if symbol.startswith(('0', '3')) else '.SS'
-        yf_sym = symbol + suffix
-        ticker = yf.Ticker(yf_sym)
+        ticker = yf.Ticker(symbol + suffix)
         hist = ticker.history(period='1y', interval='1d')
         if len(hist) > 60:
             closes = hist['Close']
             result['tech_indicators'] = {
-                'ma5': calc_ma(closes, 5),
-                'ma20': calc_ma(closes, 20),
-                'ma60': calc_ma(closes, 60),
-                'rsi': calc_rsi(closes),
-                'macd': calc_macd(closes),
-                'bollinger': calc_bollinger(closes),
+                'ma5':      calc_ma(closes, 5),
+                'ma20':     calc_ma(closes, 20),
+                'ma60':     calc_ma(closes, 60),
+                'rsi':      calc_rsi(closes),
+                'macd':     calc_macd(closes),
+                'bollinger':calc_bollinger(closes),
                 'current_price': safe(lambda: round(float(closes.iloc[-1]), 2))
             }
-            df_for_sr = pd.DataFrame({'close': closes})
-            result['support_resistance'] = calc_support_resistance(df_for_sr)
+            result['support_resistance'] = calc_support_resistance(pd.DataFrame({'close': closes}))
     except:
         pass
 
-    # 同行业股票对比
+    # 6. 同行业对比（用 spot_df 获取准确市值）
     try:
         industry = result.get('industry', '')
         if industry:
             peer_df = ak.stock_board_industry_cons_em(symbol=industry)
-            peer_df = peer_df[peer_df['代码'] != symbol].head(5)
-            peers = []
-            for _, row in peer_df.iterrows():
-                peers.append({
-                    'symbol': str(row.get('代码', '')),
-                    'name': str(row.get('名称', '')),
-                    'price': safe(lambda r=row: round(float(r.get('最新价', 0) or 0), 2)),
-                    'change_pct': safe(lambda r=row: round(float(r.get('涨跌幅', 0) or 0), 2)),
-                    'pe': safe(lambda r=row: round(float(r.get('市盈率-动态', 0) or 0), 2)),
-                    'market_cap': safe(lambda r=row: round(float(r.get('总市值', 0) or 0) / 1e8, 2))
-                })
-            result['peers_data'] = peers
+            peer_codes = [str(c) for c in peer_df[peer_df['代码'] != symbol]['代码'].tolist()[:8]]
+            if spot_df is not None and len(peer_codes) > 0:
+                peer_spot = spot_df[spot_df['代码'].isin(peer_codes)].head(5)
+                peers = []
+                for _, row in peer_spot.iterrows():
+                    peers.append({
+                        'symbol':     str(row.get('代码', '')),
+                        'name':       str(row.get('名称', '')),
+                        'price':      safe(lambda r=row: round(float(r['最新价']), 2)),
+                        'change_pct': safe(lambda r=row: round(float(r['涨跌幅']), 2)),
+                        'pe':         safe(lambda r=row: round(float(r['市盈率-动态']), 2)),
+                        'market_cap': safe(lambda r=row: round(float(r['总市值']) / 1e8, 2))
+                    })
+                result['peers_data'] = peers
     except:
         pass
 

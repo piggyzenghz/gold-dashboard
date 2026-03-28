@@ -4151,7 +4151,7 @@ document.addEventListener('click', function(e) {
             grid: { left: 60, right: 20, top: 20, bottom: 48 },
             xAxis: { type: 'category', data: monthly.map(function(m) { return (m.date||'').slice(0,7); }), axisLine: { lineStyle: { color: '#1e2a3a' } }, axisLabel: { color: '#8899a6', fontSize: 10, rotate: 30 }, splitLine: { show: false } },
             yAxis: { type: 'value', axisLine: { lineStyle: { color: '#1e2a3a' } }, axisLabel: { color: '#8899a6', fontSize: 10 }, splitLine: { lineStyle: { color: '#1e2a3a' } }, scale: true },
-            series: [{ type: 'bar', data: monthly.map(function(m) { return m.close; }), itemStyle: { color: 'rgba(249,115,22,0.7)', borderRadius: [2,2,0,0] }, barMaxWidth: 40 }],
+            series: [{ type: 'line', data: monthly.map(function(m) { return m.close; }), smooth: true, symbol: 'circle', symbolSize: 5, lineStyle: { color: '#F97316', width: 2 }, itemStyle: { color: '#F97316' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(249,115,22,0.25)' }, { offset: 1, color: 'rgba(249,115,22,0.02)' }] } } }],
             tooltip: { trigger: 'axis', formatter: function(p) { return p[0].name + '<br/>收盘: ' + (p[0].value||'—'); } }
           });
         }
