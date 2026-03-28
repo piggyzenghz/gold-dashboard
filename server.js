@@ -1588,13 +1588,14 @@ risk_reward_ratio：风险收益比（如2.5表示潜在收益是风险的2.5倍
         'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'deepseek-reasoner',
+        model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: '你是专业股票分析师，严格按JSON格式输出，不添加任何额外文字和markdown。' },
+          { role: 'system', content: '你是专业股票分析师，严格按JSON格式输出，不添加任何额外文字和markdown代码块。' },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.5,
-        max_tokens: 3000
+        temperature: 0.3,
+        max_tokens: 3000,
+        response_format: { type: 'json_object' }
       })
     });
 
