@@ -1558,7 +1558,7 @@ function checkAlerts() {
     if(hit&&!a.triggered){
       a.triggered=true;
       const nameMap={gold:'国际金价',cnyGold:'国内金价',silver:'白银'};
-      if(Notification.permission==='granted'){new Notification('价格预警',{body:`${nameMap[a.symbol]}已${a.direction==='above'?'突破':'跌破'} ${a.price}，当前 ${current.toFixed(2)}`});}
+      if(typeof Notification!=='undefined'&&Notification.permission==='granted'){new Notification('价格预警',{body:`${nameMap[a.symbol]}已${a.direction==='above'?'突破':'跌破'} ${a.price}，当前 ${current.toFixed(2)}`});}
       const el=document.getElementById('alert-'+i); if(el)el.classList.add('alert-triggered');
       try{const audio=new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGY+I0B0otO/dkMqNmyXzMKMWzswYZfIuYBVNitfl8a1f1QyK1+WxLN9UjIrXpbDsntQMitelsKxeU4yK16Vwa94TTIrXpW/rXdMMStelb2rdkkxK16UvKl0RzErXZO6p3JFMStdkrilcEMwK12Ruadv');audio.play().catch(()=>{});}catch(e){}
     } else if(!hit){a.triggered=false;}
