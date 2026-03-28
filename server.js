@@ -454,7 +454,19 @@ ${newsData}
 app.post('/api/ai/scenario', async (req, res) => {
   try {
     const { marketSummary } = req.body;
-    const prompt = `你是一位专业的黄金分析师。根据以下实时市场数据，给出黄金近期（1-2周）走势的三种情景预测。\n\n市场数据：\n${marketSummary}\n\n请严格按以下JSON格式返回，不要输出任何其他内容，不要有代码块标记：\n{"bull":{"title":"乐观情景","probability":30,"target":"目标价位区间","desc":"80字以内具体分析，说明触发条件"},"neutral":{"title":"中性震荡","probability":45,"target":"目标价位区间","desc":"80字以内具体分析，说明核心逻辑"},"bear":{"title":"悲观情景","probability":25,"target":"目标价位区间","desc":"80字以内具体分析，说明风险因素"}}\n\n注意：三个probability之和必须等于100。`;
+
+    // 用管道分隔格式代替 JSON，彻底避免 AI 在描述文字中输出未转义引号导致解析崩溃
+    const prompt = `你是专业黄金分析师。根据以下市场数据，给出黄金近期（1-2周）走势的三种情景预测。
+
+市场数据：
+${marketSummary}
+
+请严格按以下格式输出三行，每行用 | 分隔，不要有任何其他内容：
+BULL|情景标题|概率(整数%)|目标价位区间|80字以内分析
+NEUTRAL|情景标题|概率(整数%)|目标价位区间|80字以内分析
+BEAR|情景标题|概率(整数%)|目标价位区间|80字以内分析
+
+要求：三行概率之和=100；分析文字不要使用竖线符号"|"。`;
 
     const resp = await fetch('https://api.minimax.chat/v1/chat/completions', {
       method: 'POST',
@@ -462,21 +474,37 @@ app.post('/api/ai/scenario', async (req, res) => {
       body: JSON.stringify({
         model: 'MiniMax-M2.7',
         messages: [
-          { role: 'system', content: '你是专业黄金分析师，只输出纯JSON，不要有任何额外文字或代码块。' },
+          { role: 'system', content: '你是专业黄金分析师，严格按用户要求的格式输出，不添加任何额外文字。' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.6,
-        max_completion_tokens: 800,
+        max_completion_tokens: 600,
         stream: false
       })
     });
     const data = await resp.json();
     let content = data.choices?.[0]?.message?.content || '';
     content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim();
-    // Extract JSON from response
-    const match = content.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(500).json({ error: 'No JSON in response', raw: content });
-    const scenarios = JSON.parse(match[0]);
+
+    // 解析管道分隔格式
+    const lines = content.split('\n').map(l => l.trim()).filter(l => l);
+    const typeMap = { BULL: 'bull', NEUTRAL: 'neutral', BEAR: 'bear' };
+    const scenarios = {};
+    for (const line of lines) {
+      const parts = line.split('|');
+      if (parts.length < 5) continue;
+      const key = typeMap[parts[0].toUpperCase()];
+      if (!key) continue;
+      scenarios[key] = {
+        title: parts[1].trim(),
+        probability: parseInt(parts[2]) || 0,
+        target: parts[3].trim(),
+        desc: parts[4].trim()
+      };
+    }
+    if (!scenarios.bull && !scenarios.neutral && !scenarios.bear) {
+      return res.status(500).json({ error: '无法解析AI输出', raw: content.slice(0, 300) });
+    }
     res.json({ scenarios });
   } catch (e) {
     res.status(500).json({ error: e.message });
