@@ -1,11 +1,14 @@
 require('dotenv').config();
 const express = require('express');
+const cron = require('node-cron');
 const YahooFinance = require('yahoo-finance2').default;
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 const app = express();
 const PORT = 3000;
 
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 
 app.use(express.static(__dirname));
 app.use(express.json());
@@ -1172,6 +1175,106 @@ app.get('/api/astock/sector-detail/:code', async (req, res) => {
     res.json({ code, price, changePercent, kline, sectorReturns, benchReturns, stocks });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// ============ AI 日报 ============
+
+async function sendTelegram(text) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'HTML' })
+    });
+  } catch(e) { console.error('Telegram push failed:', e.message); }
+}
+
+async function generateDailyReport(type) {
+  // 收集市场数据
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('zh-CN', { month:'2-digit', day:'2-digit', weekday:'short' });
+  const timeStr = now.toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit', hour12:false });
+
+  let marketSummary = '';
+  try {
+    const [goldR, sinaR, fearR, rateR] = await Promise.allSettled([
+      fetch('https://api.gold-api.com/price/XAU').then(r=>r.json()),
+      fetch('https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&invt=2&fields=f2,f3,f4,f12,f14&secids=1.000001,0.399001,1.000300,0.399006&ut=bd1d9ddb04089700cf9c27f6f7426281', { headers:{ 'Referer':'https://finance.eastmoney.com' } }).then(r=>r.json()),
+      fetch('https://production.dataviz.cnn.io/index/fearandgreed/graphdata').then(r=>r.json()),
+      fetch('https://query1.finance.yahoo.com/v8/finance/chart/USDCNY=X?range=1d&interval=1d').then(r=>r.json())
+    ]);
+
+    const gold = goldR.status==='fulfilled' ? goldR.value : null;
+    const sina = sinaR.status==='fulfilled' ? (sinaR.value?.data?.diff||[]) : [];
+    const fear = fearR.status==='fulfilled' ? fearR.value?.fear_and_greed : null;
+    const rate = rateR.status==='fulfilled' ? rateR.value?.chart?.result?.[0]?.meta?.regularMarketPrice : null;
+
+    if (gold?.price) marketSummary += `• 黄金: $${gold.price.toFixed(2)}/盎司\n`;
+    if (rate) marketSummary += `• 美元/人民币: ${rate.toFixed(4)}\n`;
+    if (fear?.score != null) marketSummary += `• 恐惧贪婪指数: ${Math.round(fear.score)} (${fear.rating})\n`;
+    sina.forEach(s => {
+      const name = {1:'000001':'上证','0':'399001':'深成','1':'000300':'沪深300','0':'399006':'创业板'}[s.f12] || s.f14;
+      const pct = (s.f3||0);
+      if (s.f12 && ['000001','000300'].includes(String(s.f12))) {
+        marketSummary += `• ${s.f14}: ${(s.f2/100).toFixed(2)} (${pct>0?'+':''}${pct.toFixed(2)}%)\n`;
+      }
+    });
+  } catch(e) {}
+
+  const typeLabel = type === 'morning' ? '📊 盘前日报' : '📈 盘后复盘';
+  const prompt = type === 'morning'
+    ? `你是一位专业的金融分析师。今天是${dateStr}，现在是${timeStr}，A股即将开盘。请根据以下市场数据，给出一份简洁的盘前分析（200字以内），重点分析黄金走势和对A股的影响，以及今日值得关注的风险点。\n\n市场数据：\n${marketSummary}\n\n请用中文，分析要简洁专业，末尾给出今日操作建议（1-2句话）。`
+    : `你是一位专业的金融分析师。今天是${dateStr}，A股已收盘。请根据以下市场数据，给出一份简洁的盘后复盘（200字以内），总结今日市场表现，分析明日走势预判。\n\n市场数据：\n${marketSummary}\n\n请用中文，分析要简洁专业，末尾给出明日布局建议（1-2句话）。`;
+
+  if (!MINIMAX_API_KEY) return null;
+  try {
+    const aiResp = await fetch('https://api.minimax.chat/v1/text/chatcompletion_v2', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${MINIMAX_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'MiniMax-M2',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 500
+      })
+    });
+    const aiData = await aiResp.json();
+    const content = aiData?.choices?.[0]?.message?.content || '';
+    return { type, dateStr, timeStr, marketSummary, content };
+  } catch(e) { console.error('AI report error:', e.message); return null; }
+}
+
+app.post('/api/daily-report/generate', async (req, res) => {
+  try {
+    const type = req.body?.type || 'morning';
+    const report = await generateDailyReport(type);
+    if (!report) return res.status(500).json({ error: 'AI 生成失败' });
+    // 推送 Telegram
+    const typeLabel = type === 'morning' ? '📊 盘前日报' : '📈 盘后复盘';
+    const msg = `<b>${typeLabel} ${report.dateStr} ${report.timeStr}</b>\n\n<b>市场数据</b>\n${report.marketSummary}\n<b>AI 分析</b>\n${report.content}`;
+    await sendTelegram(msg);
+    res.json({ success: true, report });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 定时任务：工作日 9:00 盘前、16:00 盘后（中国时间 UTC+8）
+cron.schedule('0 1 * * 1-5', async () => { // UTC 1:00 = CST 9:00 Mon-Fri
+  console.log('Running morning report...');
+  const report = await generateDailyReport('morning');
+  if (report) {
+    const msg = `<b>📊 盘前日报 ${report.dateStr} 09:00</b>\n\n<b>市场数据</b>\n${report.marketSummary}\n<b>AI 分析</b>\n${report.content}`;
+    await sendTelegram(msg);
+  }
+}, { timezone: 'Asia/Shanghai' });
+
+cron.schedule('0 8 * * 1-5', async () => { // UTC 8:00 = CST 16:00 Mon-Fri
+  console.log('Running afternoon report...');
+  const report = await generateDailyReport('afternoon');
+  if (report) {
+    const msg = `<b>📈 盘后复盘 ${report.dateStr} 16:00</b>\n\n<b>市场数据</b>\n${report.marketSummary}\n<b>AI 分析</b>\n${report.content}`;
+    await sendTelegram(msg);
+  }
+}, { timezone: 'Asia/Shanghai' });
 
 app.listen(PORT, () => {
   console.log(`\n🏆 小猪猪财经看板已启动: http://localhost:${PORT}\n`);

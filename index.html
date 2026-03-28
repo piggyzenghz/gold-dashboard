@@ -381,6 +381,31 @@ a{color:var(--gold);text-decoration:none}
 .wl-meta{display:flex;gap:6px;margin-top:6px;font-size:10px;color:var(--text3);font-variant-numeric:tabular-nums;flex-wrap:wrap}
 .wl-del{position:absolute;top:6px;right:6px;background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;border-radius:4px;transition:all .15s}
 .wl-del:hover{color:#ff3d57;background:rgba(255,61,87,0.12)}
+.wl-pos-btn{position:absolute;top:6px;right:28px;background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:11px;line-height:1;padding:2px 4px;border-radius:4px;transition:all .15s;opacity:0}
+.wl-card:hover .wl-pos-btn{opacity:1}
+.wl-pos-btn:hover{color:var(--gold);background:rgba(240,185,11,0.1)}
+.wl-pnl{font-size:11px;margin-top:3px;font-variant-numeric:tabular-nums;font-weight:600}
+.wl-pnl.up{color:#ff3d57}.wl-pnl.down{color:#00c853}.wl-pnl.us-up{color:#00c853}.wl-pnl.us-down{color:#ef4444}
+.wl-summary{margin-top:8px;padding:8px 12px;background:rgba(0,0,0,0.2);border-radius:8px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.wl-summary-item{display:flex;flex-direction:column;gap:2px}
+.wl-summary-label{font-size:10px;color:var(--text3)}
+.wl-summary-val{font-weight:600;font-variant-numeric:tabular-nums}
+/* 持仓编辑模态框 */
+.pos-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:2000;display:flex;align-items:center;justify-content:center;display:none}
+.pos-modal-overlay.show{display:flex}
+.pos-modal{background:#1a2535;border:1px solid var(--card-border);border-radius:14px;padding:20px;width:260px;box-shadow:0 16px 48px rgba(0,0,0,0.5)}
+.pos-modal h4{font-size:14px;color:var(--text);margin-bottom:14px;font-weight:600}
+.pos-modal label{font-size:11px;color:var(--text3);display:block;margin-bottom:4px}
+.pos-modal input{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--card-border);border-radius:6px;color:var(--text);font-size:13px;padding:7px 10px;outline:none;margin-bottom:10px;font-variant-numeric:tabular-nums;font-family:inherit}
+.pos-modal input:focus{border-color:var(--gold)}
+.pos-modal-btns{display:flex;gap:8px;margin-top:4px}
+.pos-modal-btns button{flex:1;padding:8px;border-radius:7px;font-size:12px;cursor:pointer;border:1px solid transparent;transition:all .2s}
+.pos-save-btn{background:var(--gold);color:#000;font-weight:600}
+.pos-save-btn:hover{background:#d4a000}
+.pos-clear-btn{background:transparent;border-color:var(--card-border)!important;color:var(--text3)}
+.pos-clear-btn:hover{border-color:#ff3d57!important;color:#ff3d57}
+.pos-cancel-btn{background:transparent;border-color:var(--card-border)!important;color:var(--text3)}
+.pos-cancel-btn:hover{border-color:rgba(255,255,255,0.2)!important;color:var(--text)}
 .wl-add-row{display:flex;gap:6px;align-items:center}
 .wl-input{background:rgba(0,0,0,0.25);border:1px solid var(--card-border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 10px;outline:none;width:180px;transition:border-color .2s;font-family:inherit}
 .wl-input:focus{border-color:var(--gold)}
@@ -662,7 +687,7 @@ a{color:var(--gold);text-decoration:none}
       <div class="page" id="page-ai-news">
         <div class="ai-news-layout">
           <div class="ai-panel">
-            <div class="ai-header"><h3>AI 市场分析</h3><button class="ai-btn" id="aiBtn" onclick="runAiAnalysis()">开始分析</button></div>
+            <div class="ai-header"><h3>AI 市场分析</h3><div style="display:flex;gap:6px"><button class="ai-btn" id="aiDailyBtn" onclick="triggerDailyReport()" style="background:rgba(59,130,246,0.15);border-color:rgba(59,130,246,0.4);color:#60a5fa;font-size:11px;padding:5px 10px">📊 生成日报</button><button class="ai-btn" id="aiBtn" onclick="runAiAnalysis()">开始分析</button></div></div>
             <div class="ai-content" id="aiContent"><div class="ai-empty"><svg class="ai-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z"/><line x1="9" y1="21" x2="15" y2="21"/><line x1="10" y1="23" x2="14" y2="23"/></svg><div class="ai-empty-text">点击"开始分析"，AI 将基于实时行情、<br>市场指标和最新资讯生成综合研判</div><div class="ai-empty-hint">分析内容包括：趋势判断 · 关键支撑/阻力位 · 风险提示</div></div></div>
           </div>
           <div class="news-panel">
@@ -730,13 +755,15 @@ a{color:var(--gold);text-decoration:none}
                 <option value="silver">白银 (USD/oz)</option>
               </select>
             </div>
-            <div class="tool-row"><label>条件</label>
-              <select class="tool-select" id="alertDirection">
-                <option value="above">价格高于</option>
-                <option value="below">价格低于</option>
+            <div class="tool-row"><label>类型</label>
+              <select class="tool-select" id="alertType" onchange="onAlertTypeChange()">
+                <option value="price_above">价格突破 ↑</option>
+                <option value="price_below">价格跌破 ↓</option>
+                <option value="pct_up">单日涨幅超过 %</option>
+                <option value="pct_down">单日跌幅超过 %</option>
               </select>
             </div>
-            <div class="tool-row"><label for="alertPrice">价格</label><input class="tool-input" id="alertPrice" type="number" step="0.01" placeholder="目标价格"></div>
+            <div class="tool-row" id="alertPriceRow"><label id="alertValueLabel">目标价格</label><input class="tool-input" id="alertPrice" type="number" step="0.01" placeholder="目标价格"></div>
             <div class="tool-row"><button class="tool-btn" onclick="addAlert()">添加预警</button></div>
             <div class="alert-list" id="alertList"></div>
           </div>
@@ -856,6 +883,7 @@ a{color:var(--gold);text-decoration:none}
           <div id="wl-grid" class="wl-grid">
             <div class="wl-empty">输入股票代码添加自选股，数据实时更新</div>
           </div>
+          <div id="wl-summary" class="wl-summary" style="display:none"></div>
         </div>
 
         <!-- 行业板块涨跌 -->
@@ -998,6 +1026,7 @@ a{color:var(--gold);text-decoration:none}
             </div>
           </div>
           <div id="us-wl-grid" class="wl-grid"><div class="wl-empty">输入股票代码或名称添加自选美股</div></div>
+          <div id="us-wl-summary" class="wl-summary" style="display:none"></div>
         </div>
 
         <!-- 板块ETF -->
@@ -1332,6 +1361,25 @@ function showAiCache() {
   }
 }
 
+async function triggerDailyReport() {
+  const btn = document.getElementById('aiDailyBtn');
+  btn.disabled = true; btn.textContent = '生成中...';
+  try {
+    const resp = await fetch('/api/daily-report/generate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({type:'manual'}) });
+    const data = await resp.json();
+    if (data.ok) {
+      btn.textContent = '✅ 已推送';
+      setTimeout(() => { btn.disabled = false; btn.textContent = '📊 生成日报'; }, 3000);
+    } else {
+      btn.textContent = '❌ 失败';
+      setTimeout(() => { btn.disabled = false; btn.textContent = '📊 生成日报'; }, 3000);
+    }
+  } catch(e) {
+    btn.textContent = '❌ 网络错误';
+    setTimeout(() => { btn.disabled = false; btn.textContent = '📊 生成日报'; }, 3000);
+  }
+}
+
 async function runAiAnalysis() {
   const btn=document.getElementById('aiBtn'), content=document.getElementById('aiContent');
   btn.disabled=true; btn.textContent='正在采集数据...';
@@ -1536,20 +1584,39 @@ function updateSpread() {
 }
 
 // ===== Alerts =====
+function onAlertTypeChange() {
+  var t = document.getElementById('alertType').value;
+  var label = document.getElementById('alertValueLabel');
+  var input = document.getElementById('alertPrice');
+  if (t === 'pct_up' || t === 'pct_down') {
+    label.textContent = t === 'pct_up' ? '涨幅阈值 (%)' : '跌幅阈值 (%)';
+    input.placeholder = '例: 3 表示3%';
+    input.step = '0.1';
+  } else {
+    label.textContent = '目标价格';
+    input.placeholder = '目标价格';
+    input.step = '0.01';
+  }
+}
 function renderAlerts() {
   const el=document.getElementById('alertList');
   if(!state.alerts.length){el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px">暂无预警</div>';return;}
+  const nameMap={gold:'国际金价',cnyGold:'国内金价',silver:'白银'};
   el.innerHTML=state.alerts.map((a,i)=>{
-    const nameMap={gold:'国际金价',cnyGold:'国内金价',silver:'白银'};
-    return `<div class="alert-item" id="alert-${i}"><span>${nameMap[a.symbol]}</span><span style="color:var(--gold)">${a.direction==='above'?'≥':'≤'} ${a.price}</span><span class="alert-del" onclick="removeAlert(${i})">×</span></div>`;
+    var typeLabel;
+    if(a.type==='pct_up') typeLabel='涨幅≥'+a.value+'%';
+    else if(a.type==='pct_down') typeLabel='跌幅≥'+a.value+'%';
+    else if(a.type==='price_above'||a.direction==='above') typeLabel='≥'+(a.value||a.price);
+    else typeLabel='≤'+(a.value||a.price);
+    return `<div class="alert-item" id="alert-${i}"><span>${nameMap[a.symbol]||a.symbol}</span><span style="color:var(--gold)">${typeLabel}</span><span class="alert-del" onclick="removeAlert(${i})">×</span></div>`;
   }).join('');
 }
 function addAlert() {
   const symbol=document.getElementById('alertSymbol').value;
-  const direction=document.getElementById('alertDirection').value;
-  const price=parseFloat(document.getElementById('alertPrice').value);
-  if(!price){return;}
-  state.alerts.push({symbol,direction,price,triggered:false});
+  const type=document.getElementById('alertType').value;
+  const value=parseFloat(document.getElementById('alertPrice').value);
+  if(!value||value<=0){return;}
+  state.alerts.push({symbol,type,value,triggered:false});
   localStorage.setItem('goldAlerts',JSON.stringify(state.alerts));
   renderAlerts(); document.getElementById('alertPrice').value='';
 }
@@ -1559,14 +1626,22 @@ function removeAlert(i) {
   renderAlerts();
 }
 function checkAlerts() {
-  const prices={gold:state.marketData.gold?.price,cnyGold:state.marketData.cnyGold,silver:state.marketData.silver?.price};
+  const priceMap={gold:state.marketData.gold?.price,cnyGold:state.marketData.cnyGold,silver:state.marketData.silver?.price};
+  const pctMap={gold:state.marketData.gold?.changePercent,cnyGold:null,silver:state.marketData.silver?.changePercent};
+  const nameMap={gold:'国际金价',cnyGold:'国内金价',silver:'白银'};
   state.alerts.forEach((a,i)=>{
-    const current=prices[a.symbol]; if(!current)return;
-    const hit=(a.direction==='above'&&current>=a.price)||(a.direction==='below'&&current<=a.price);
+    var hit=false, msgBody='';
+    var current=priceMap[a.symbol];
+    // Support legacy alerts (direction field) and new type field
+    var type=a.type||(a.direction==='above'?'price_above':'price_below');
+    var value=a.value||a.price;
+    if(type==='price_above'&&current!=null){hit=current>=value;if(hit)msgBody=`${nameMap[a.symbol]}已突破 ${value}，当前 ${current.toFixed(2)}`;}
+    else if(type==='price_below'&&current!=null){hit=current<=value;if(hit)msgBody=`${nameMap[a.symbol]}已跌破 ${value}，当前 ${current.toFixed(2)}`;}
+    else if(type==='pct_up'){var pct=pctMap[a.symbol];if(pct!=null){hit=pct>=value;if(hit)msgBody=`${nameMap[a.symbol]}日内涨幅已达 ${pct.toFixed(2)}%，超过预警阈值 ${value}%`;}}
+    else if(type==='pct_down'){var pct=pctMap[a.symbol];if(pct!=null){hit=pct<=-value;if(hit)msgBody=`${nameMap[a.symbol]}日内跌幅已达 ${Math.abs(pct).toFixed(2)}%，超过预警阈值 ${value}%`;}}
     if(hit&&!a.triggered){
       a.triggered=true;
-      const nameMap={gold:'国际金价',cnyGold:'国内金价',silver:'白银'};
-      if(typeof Notification!=='undefined'&&Notification.permission==='granted'){new Notification('价格预警',{body:`${nameMap[a.symbol]}已${a.direction==='above'?'突破':'跌破'} ${a.price}，当前 ${current.toFixed(2)}`});}
+      if(typeof Notification!=='undefined'&&Notification.permission==='granted'){new Notification('价格预警',{body:msgBody});}
       const el=document.getElementById('alert-'+i); if(el)el.classList.add('alert-triggered');
       try{const audio=new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbsGY+I0B0otO/dkMqNmyXzMKMWzswYZfIuYBVNitfl8a1f1QyK1+WxLN9UjIrXpbDsntQMitelsKxeU4yK16Vwa94TTIrXpW/rXdMMStelb2rdkkxK16UvKl0RzErXZO6p3JFMStdkrilcEMwK12Ruadv');audio.play().catch(()=>{});}catch(e){}
     } else if(!hit){a.triggered=false;}
@@ -1845,6 +1920,34 @@ state.wlCodes = JSON.parse(localStorage.getItem('astock_wl') || '[]');
 
 function wlSave() { localStorage.setItem('astock_wl', JSON.stringify(state.wlCodes)); }
 
+// ===== 持仓管理 =====
+var posData = JSON.parse(localStorage.getItem('wl_positions') || '{}'); // {key: {cost, qty, market}}
+var posModalKey = null;
+function posSave() { localStorage.setItem('wl_positions', JSON.stringify(posData)); }
+function posModalOpen(key, name) {
+  posModalKey = key;
+  document.getElementById('pos-modal-title').textContent = '持仓编辑 · ' + name;
+  document.getElementById('pos-cost-input').value = posData[key]?.cost || '';
+  document.getElementById('pos-qty-input').value = posData[key]?.qty || '';
+  document.getElementById('pos-modal-overlay').classList.add('show');
+}
+function posModalClose() { document.getElementById('pos-modal-overlay').classList.remove('show'); }
+function posModalSave() {
+  var cost = parseFloat(document.getElementById('pos-cost-input').value);
+  var qty = parseFloat(document.getElementById('pos-qty-input').value);
+  if (!isNaN(cost) && cost > 0) {
+    posData[posModalKey] = { cost, qty: !isNaN(qty) && qty > 0 ? qty : 0 };
+  }
+  posSave(); posModalClose();
+  fetchWatchlist(); fetchUSWatchlist();
+}
+function posModalClear() {
+  delete posData[posModalKey];
+  posSave(); posModalClose();
+  fetchWatchlist(); fetchUSWatchlist();
+}
+document.getElementById('pos-modal-overlay').addEventListener('click', function(e){ if(e.target===this) posModalClose(); });
+
 function wlAdd(raw) {
   var code = String(raw).replace(/\D/g, '').slice(-6).padStart(6, '0');
   if (code.length !== 6 || state.wlCodes.includes(code)) return;
@@ -1892,13 +1995,26 @@ async function fetchWatchlist() {
       var bg = isUp ? 'rgba(255,61,87,0.06)' : 'rgba(0,200,83,0.06)';
       var pctStr = (isUp ? '+' : '') + s.changePercent.toFixed(2) + '%';
       var chgStr = (isUp ? '+' : '') + s.change.toFixed(2);
-      html += '<div class="wl-card" style="background:' + bg + ';border-color:' + col.replace('#','rgba(') + '33)">';
+      var pos = posData[s.code];
+      var pnlHtml = '';
+      if (pos && pos.cost > 0) {
+        var pnl = s.price - pos.cost;
+        var pnlPct = (pnl / pos.cost) * 100;
+        var pnlTotal = pos.qty > 0 ? pnl * pos.qty : null;
+        var pnlClass = pnl >= 0 ? 'up' : 'down';
+        var pnlStr = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + ' (' + (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2) + '%)';
+        if (pnlTotal !== null) pnlStr += ' 共' + (pnlTotal >= 0 ? '+' : '') + pnlTotal.toFixed(0);
+        pnlHtml = '<div class="wl-pnl ' + pnlClass + '">' + pnlStr + '</div>';
+      }
+      html += '<div class="wl-card" style="background:' + bg + ';border-color:' + col.replace('#','rgba(') + '33);position:relative">';
       html += '<button class="wl-del" data-code="' + s.code + '" title="删除">&times;</button>';
+      html += '<button class="wl-pos-btn" onclick="posModalOpen(\'' + s.code + '\',\'' + escH(s.name) + '\')" title="编辑持仓">持仓</button>';
       html += '<div style="display:flex;align-items:flex-start;justify-content:space-between">';
       html += '<div><div class="wl-name">' + escH(s.name) + '</div><div class="wl-code">' + s.code + '</div></div>';
       html += '</div>';
       html += '<div class="wl-price" style="color:' + col + '">' + s.price.toFixed(2) + '</div>';
       html += '<div class="wl-pct" style="color:' + col + '">' + pctStr + ' <span style="font-size:11px;opacity:.8">' + chgStr + '</span></div>';
+      html += pnlHtml;
       html += '<div class="wl-meta">';
       html += '<span>开 ' + s.open.toFixed(2) + '</span>';
       html += '<span>高 ' + s.high.toFixed(2) + '</span>';
@@ -1907,6 +2023,22 @@ async function fetchWatchlist() {
       html += '</div>';
     });
     el.innerHTML = html;
+    // Portfolio summary
+    var sumEl = document.getElementById('wl-summary');
+    var posCodes = state.wlCodes.filter(function(c){ return posData[c] && posData[c].cost > 0; });
+    if (sumEl && posCodes.length > 0) {
+      var totalCost = 0, totalVal = 0, totalPnl = 0;
+      posCodes.forEach(function(c) {
+        var p = posData[c]; var s = map[c]; if (!s) return;
+        if (p.qty > 0) { totalCost += p.cost * p.qty; totalVal += s.price * p.qty; totalPnl += (s.price - p.cost) * p.qty; }
+      });
+      var pnlPct = totalCost > 0 ? (totalPnl / totalCost * 100) : 0;
+      var pnlClass = totalPnl >= 0 ? '#ff3d57' : '#00c853';
+      sumEl.innerHTML = '<span class="wl-summary-label">持仓汇总</span>'
+        + '<span class="wl-summary-item"><span class="wl-summary-label">持仓市值</span><span class="wl-summary-val">¥' + totalVal.toFixed(0) + '</span></span>'
+        + '<span class="wl-summary-item"><span class="wl-summary-label">总盈亏</span><span class="wl-summary-val" style="color:' + pnlClass + '">' + (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(0) + ' (' + (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2) + '%)</span></span>';
+      sumEl.style.display = 'flex';
+    } else if (sumEl) { sumEl.style.display = 'none'; }
   } catch(e) {
     el.innerHTML = '<div class="wl-empty">行情加载失败: ' + escH(e.message) + '</div>';
   }
@@ -2127,6 +2259,21 @@ window.addEventListener('resize',()=>{
 </script>
 
 <!-- A股板块详情面板 -->
+<!-- 持仓编辑模态框 -->
+<div class="pos-modal-overlay" id="pos-modal-overlay">
+  <div class="pos-modal">
+    <h4 id="pos-modal-title">编辑持仓</h4>
+    <label>成本价</label>
+    <input type="number" id="pos-cost-input" step="0.01" placeholder="每股/每盎司成本价">
+    <label>持仓数量</label>
+    <input type="number" id="pos-qty-input" step="1" placeholder="股数 / 手数 / 克数">
+    <div class="pos-modal-btns">
+      <button class="pos-save-btn" onclick="posModalSave()">保存</button>
+      <button class="pos-clear-btn" onclick="posModalClear()">清空</button>
+      <button class="pos-cancel-btn" onclick="posModalClose()">取消</button>
+    </div>
+  </div>
+</div>
 <div class="sec-panel-overlay" id="sec-overlay"></div>
 <div class="sec-detail-panel" id="sec-panel">
   <div class="sec-panel-hdr">
@@ -2734,13 +2881,26 @@ async function fetchUSWatchlist() {
       var pctStr = (isUp?'+':'') + (s.changePercent||0).toFixed(2) + '%';
       var chgStr = (isUp?'+':'') + (s.change||0).toFixed(2);
       var stateLabel = s.marketState === 'PRE' ? ' 盘前' : s.marketState === 'POST' ? ' 盘后' : s.marketState !== 'REGULAR' ? ' 休市' : '';
-      html += '<div class="wl-card" style="background:'+bg+';border-color:'+bdr+'" data-sym="'+sym+'" data-name="'+escH(s.name||sym)+'">';
+      var usPos = posData['us_' + sym];
+      var usPnlHtml = '';
+      if (usPos && usPos.cost > 0) {
+        var usPnl = s.price - usPos.cost;
+        var usPnlPct = (usPnl / usPos.cost) * 100;
+        var usPnlTotal = usPos.qty > 0 ? usPnl * usPos.qty : null;
+        var usPnlClass = usPnl >= 0 ? 'us-up' : 'us-down';
+        var usPnlStr = (usPnl >= 0 ? '+' : '') + usPnl.toFixed(2) + ' (' + (usPnlPct >= 0 ? '+' : '') + usPnlPct.toFixed(2) + '%)';
+        if (usPnlTotal !== null) usPnlStr += ' 共' + (usPnlTotal >= 0 ? '+$' : '-$') + Math.abs(usPnlTotal).toFixed(0);
+        usPnlHtml = '<div class="wl-pnl ' + usPnlClass + '">' + usPnlStr + '</div>';
+      }
+      html += '<div class="wl-card" style="background:'+bg+';border-color:'+bdr+';position:relative" data-sym="'+sym+'" data-name="'+escH(s.name||sym)+'">';
       html += '<button class="wl-del" data-sym="'+sym+'" title="删除">&times;</button>';
+      html += '<button class="wl-pos-btn" onclick="posModalOpen(\'us_'+sym+'\',\''+escH(s.name||sym)+'\')" title="编辑持仓">持仓</button>';
       html += '<div style="display:flex;align-items:flex-start;justify-content:space-between">';
       html += '<div><div class="wl-name">' + escH(s.name||sym) + '</div><div class="wl-code">'+s.symbol+(stateLabel?'<span style="font-size:9px;color:#ff9800">'+stateLabel+'</span>':'')+'</div></div>';
       html += '</div>';
       html += '<div class="wl-price" style="color:'+col+'">$'+s.price.toFixed(2)+'</div>';
       html += '<div class="wl-pct" style="color:'+col+'">'+pctStr+' <span style="font-size:11px;opacity:.8">'+chgStr+'</span></div>';
+      html += usPnlHtml;
       html += '<div class="wl-meta"><span>开 $'+s.open.toFixed(2)+'</span><span>高 $'+s.high.toFixed(2)+'</span><span>低 $'+s.low.toFixed(2)+'</span></div>';
       html += '</div>';
     });
@@ -2761,6 +2921,22 @@ async function fetchUSWatchlist() {
         }
       });
     }
+    // US portfolio summary
+    var usSumEl = document.getElementById('us-wl-summary');
+    var usPosSyms = usState.wlSymbols.filter(function(sym){ var p = posData['us_' + sym]; return p && p.cost > 0 && p.qty > 0; });
+    if (usSumEl && usPosSyms.length > 0) {
+      var usTotalCost = 0, usTotalVal = 0, usTotalPnl = 0;
+      usPosSyms.forEach(function(sym) {
+        var p = posData['us_' + sym]; var s = map[sym]; if (!s) return;
+        usTotalCost += p.cost * p.qty; usTotalVal += s.price * p.qty; usTotalPnl += (s.price - p.cost) * p.qty;
+      });
+      var usPnlPct = usTotalCost > 0 ? (usTotalPnl / usTotalCost * 100) : 0;
+      var usPnlColor = usTotalPnl >= 0 ? '#00c853' : '#ef4444';
+      usSumEl.innerHTML = '<span class="wl-summary-label">持仓汇总</span>'
+        + '<span class="wl-summary-item"><span class="wl-summary-label">持仓市值</span><span class="wl-summary-val">$' + usTotalVal.toFixed(0) + '</span></span>'
+        + '<span class="wl-summary-item"><span class="wl-summary-label">总盈亏</span><span class="wl-summary-val" style="color:' + usPnlColor + '">' + (usTotalPnl >= 0 ? '+$' : '-$') + Math.abs(usTotalPnl).toFixed(0) + ' (' + (usPnlPct >= 0 ? '+' : '') + usPnlPct.toFixed(2) + '%)</span></span>';
+      usSumEl.style.display = 'flex';
+    } else if (usSumEl) { usSumEl.style.display = 'none'; }
   } catch(e) { document.getElementById('us-wl-grid').innerHTML = '<div class="wl-empty">行情加载失败: ' + escH(e.message) + '</div>'; }
 }
 
