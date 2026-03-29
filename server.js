@@ -7,6 +7,7 @@ const app = express();
 const PORT = 3000;
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
+const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
 
@@ -255,6 +256,92 @@ app.get('/api/news', async (req, res) => {
     cacheSet(cKey, articles, 600); // 10分钟缓存
     res.json(articles);
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ============ 国际资讯 (RSS) ============
+
+function parseRSSItems(xml, sourceName) {
+  const items = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let m;
+  while ((m = itemRegex.exec(xml)) !== null) {
+    const block = m[1];
+    const get = (tag) => {
+      const r = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`, 'i').exec(block);
+      return r ? r[1].replace(/<[^>]+>/g, '').trim() : '';
+    };
+    const link = /<link>(https?:\/\/[^<]+)<\/link>/i.exec(block)?.[1]?.trim()
+              || /<guid[^>]*>(https?:\/\/[^<]+)<\/guid>/i.exec(block)?.[1]?.trim() || '';
+    const title = get('title');
+    const pubDate = get('pubDate');
+    const desc = get('description').slice(0, 200);
+    if (title && link) items.push({ title, link, pubDate, description: desc, source: sourceName });
+  }
+  return items.slice(0, 10);
+}
+
+async function fetchRSS(url, sourceName) {
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RSS/2.0)' },
+      signal: AbortSignal.timeout(8000)
+    });
+    return parseRSSItems(await resp.text(), sourceName);
+  } catch(e) { return []; }
+}
+
+async function translateTitle(text) {
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=${encodeURIComponent(text)}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const data = await resp.json();
+    return data[0]?.map(p => p[0]).filter(Boolean).join('') || text;
+  } catch(e) { return text; }
+}
+
+async function translateTitles(titles) {
+  if (!titles.length) return titles;
+  return Promise.all(titles.map(t => translateTitle(t)));
+}
+
+const RSS_SOURCES = {
+  markets: [
+    { name: 'Reuters', url: 'https://feeds.reuters.com/reuters/businessNews' },
+    { name: 'CNBC', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html' },
+    { name: 'MarketWatch', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' },
+  ],
+  politics: [
+    { name: 'Reuters', url: 'https://feeds.reuters.com/Reuters/PoliticsNews' },
+    { name: 'Reuters US', url: 'https://feeds.reuters.com/Reuters/domesticNews' },
+  ],
+  world: [
+    { name: 'Reuters', url: 'https://feeds.reuters.com/Reuters/worldNews' },
+    { name: 'CNBC', url: 'https://www.cnbc.com/id/100727362/device/rss/rss.html' },
+  ]
+};
+
+app.get('/api/news/intl', async (req, res) => {
+  try {
+    const category = req.query.category || 'markets';
+    const cKey = `intl-news:${category}`;
+    const cached = cacheGet(cKey);
+    if (cached) return res.json(cached);
+
+    const sources = RSS_SOURCES[category] || RSS_SOURCES.markets;
+    const results = await Promise.all(sources.map(s => fetchRSS(s.url, s.name)));
+    let articles = results.flat();
+    articles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+    articles = articles.slice(0, 20);
+
+    const titles = articles.map(a => a.title);
+    const translated = await translateTitles(titles);
+    articles.forEach((a, i) => { a.titleZh = translated[i] || a.title; });
+
+    cacheSet(cKey, articles, 600);
+    res.json(articles);
+  } catch(e) {
     res.status(500).json({ error: e.message });
   }
 });
