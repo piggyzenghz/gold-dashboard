@@ -166,7 +166,7 @@ a{color:var(--gold);text-decoration:none}
 .overlay-desc{font-size:12px;color:var(--text3);margin-top:12px;padding:10px 14px;background:rgba(0,0,0,0.2);border-radius:8px;line-height:1.6}
 
 /* AI & News */
-.ai-news-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:560px}
+.ai-news-layout{display:grid;grid-template-columns:1fr 2fr;gap:16px;height:780px}
 .ai-panel{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.15);overflow:hidden}
 .ai-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .ai-header h3{font-size:16px;color:var(--gold);display:flex;align-items:center;gap:8px}
@@ -184,7 +184,7 @@ a{color:var(--gold);text-decoration:none}
 .ai-typing::after{content:'▌';animation:blink .8s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
 
-.news-panel{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.15);overflow:hidden}
+.news-panel{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;box-shadow:0 2px 12px rgba(0,0,0,0.15);overflow:hidden;min-height:0}
 .news-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .news-header h3{font-size:16px;color:var(--gold);display:flex;align-items:center;gap:8px}
 .news-header h3::before{content:'';display:inline-block;width:4px;height:18px;background:var(--gold);border-radius:2px}
@@ -385,7 +385,7 @@ a{color:var(--gold);text-decoration:none}
 .macro-updated{font-size:11px;color:var(--text3);text-align:right;margin-top:12px}
 
 @media(max-width:1200px){.market-row{grid-template-columns:repeat(3,1fr)}.tool-grid{grid-template-columns:1fr}.macro-grid{grid-template-columns:repeat(2,1fr)}.gauge-row{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:900px){.gold-row,.ai-news-layout{grid-template-columns:1fr}.market-row{grid-template-columns:repeat(2,1fr)}.macro-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.gold-row,.ai-news-layout{grid-template-columns:1fr;height:auto}.market-row{grid-template-columns:repeat(2,1fr)}.macro-grid{grid-template-columns:1fr}}
 @media(max-width:600px){
   :root{--sidebar-w:52px}
   .app{height:100dvh}
@@ -1030,45 +1030,45 @@ a{color:var(--gold);text-decoration:none}
       <!-- ===== Page 3: AI & 资讯 ===== -->
       <div class="page" id="page-ai-news">
         <div class="ai-news-layout">
-          <!-- 国外资讯 -->
-          <div class="news-panel intl-panel">
-            <div class="news-header">
-              <h3>国外资讯</h3>
-              <div class="news-tabs" id="intlTabs">
-                <button class="news-tab active" data-cat="markets">财经</button>
-                <button class="news-tab" data-cat="politics">时政</button>
-                <button class="news-tab" data-cat="world">国际</button>
-              </div>
-            </div>
-            <div class="news-list" id="intlNewsList"><div style="color:var(--text3);padding:40px 20px;text-align:center;font-size:13px">加载中...</div></div>
-          </div>
-          <div class="news-panel" style="display:flex;flex-direction:column">
-            <div class="news-header">
-              <h3>国内资讯</h3>
-              <div class="news-tabs" id="newsTabs">
-                <button class="news-tab active" data-cat="finance">财经</button>
-                <button class="news-tab" data-cat="politics">时政</button>
-                <button class="news-tab" data-cat="world">国际</button>
-              </div>
-            </div>
-            <div class="news-list" id="newsList" style="flex:1"></div>
-            <!-- A股新闻 -->
-            <div style="border-top:1px solid var(--card-border);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;flex:1;min-height:0">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-                <div style="font-size:14px;color:var(--gold);font-weight:600;display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:4px;height:16px;background:var(--gold);border-radius:2px"></span>A股动态</div>
-                <div class="news-tabs" id="astockTabs">
-                  <button class="news-tab active" data-type="gs">股市</button>
-                  <button class="news-tab" data-type="kx">快讯</button>
-                  <button class="news-tab" data-type="yw">要闻</button>
+          <!-- 左列：国外 + 国内上下叠放 -->
+          <div style="display:flex;flex-direction:column;gap:14px;min-height:0;overflow:hidden">
+            <!-- 国外资讯 -->
+            <div class="news-panel intl-panel" style="flex:1;min-height:0">
+              <div class="news-header">
+                <h3>国外资讯</h3>
+                <div class="news-tabs" id="intlTabs">
+                  <button class="news-tab active" data-cat="markets">财经</button>
+                  <button class="news-tab" data-cat="politics">时政</button>
+                  <button class="news-tab" data-cat="world">国际</button>
                 </div>
               </div>
-              <div class="news-list" id="astockNewsList" style="flex:1"><div style="color:var(--text3);padding:20px;text-align:center;font-size:13px">加载中...</div></div>
+              <div class="news-list" id="intlNewsList"><div style="color:var(--text3);padding:40px 20px;text-align:center;font-size:13px">加载中...</div></div>
+            </div>
+            <!-- 国内资讯 -->
+            <div class="news-panel" style="flex:1;min-height:0;display:flex;flex-direction:column">
+              <div class="news-header">
+                <h3>国内资讯</h3>
+                <div class="news-tabs" id="newsTabs">
+                  <button class="news-tab active" data-cat="finance">财经</button>
+                  <button class="news-tab" data-cat="politics">时政</button>
+                  <button class="news-tab" data-cat="world">国际</button>
+                </div>
+              </div>
+              <div class="news-list" id="newsList" style="flex:1"></div>
             </div>
           </div>
-        </div>
-        <div class="calendar-section">
-          <h3>经济日历（近60天重要事件）</h3>
-          <div id="calendarList">加载中...</div>
+          <!-- 右列：A股动态全高 -->
+          <div class="news-panel" style="display:flex;flex-direction:column;min-height:0">
+            <div class="news-header">
+              <h3>A股动态</h3>
+              <div class="news-tabs" id="astockTabs">
+                <button class="news-tab active" data-type="gs">股市</button>
+                <button class="news-tab" data-type="kx">快讯</button>
+                <button class="news-tab" data-type="yw">要闻</button>
+              </div>
+            </div>
+            <div class="news-list" id="astockNewsList" style="flex:1"><div style="color:var(--text3);padding:40px 20px;text-align:center;font-size:13px">加载中...</div></div>
+          </div>
         </div>
       </div>
 
