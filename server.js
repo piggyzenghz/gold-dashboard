@@ -313,12 +313,12 @@ const RSS_SOURCES = {
     { name: 'MarketWatch', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' },
   ],
   politics: [
-    { name: 'Reuters', url: 'https://feeds.reuters.com/Reuters/PoliticsNews' },
-    { name: 'Reuters US', url: 'https://feeds.reuters.com/Reuters/domesticNews' },
+    { name: 'BBC', url: 'https://feeds.bbci.co.uk/news/world/asia/china/rss.xml' },
+    { name: 'SCMP', url: 'https://www.scmp.com/rss/4/feed' },
   ],
   world: [
-    { name: 'Reuters', url: 'https://feeds.reuters.com/Reuters/worldNews' },
-    { name: 'CNBC', url: 'https://www.cnbc.com/id/100727362/device/rss/rss.html' },
+    { name: 'NYT', url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml' },
+    { name: 'BBC', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
   ]
 };
 
