@@ -4,11 +4,40 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>小猪猪财经看板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="/node_modules/echarts/dist/echarts.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0a0e17;--card:#131a2a;--card-border:#1e2a3a;--gold:#f0b90b;--gold-dim:rgba(240,185,11,0.15);--green:#00c853;--red:#ff3d57;--text:#e8eaed;--text2:#8899a6;--text3:#7a8da0;--sidebar-w:72px}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;overflow-x:hidden}
+:root{
+  --bg:#090d15;--card:#111827;--card-border:#1e2d3d;
+  --gold:#f0b90b;--gold-dim:rgba(240,185,11,0.13);--gold-glow:rgba(240,185,11,0.18);
+  --green:#00c853;--red:#ff3d57;
+  --text:#e8eaed;--text2:#8899a6;--text3:#556879;
+  --sidebar-w:72px;
+  --radius:12px;
+  --font-ui:'DM Sans',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+  --font-mono:'DM Mono','SF Mono','Consolas',monospace;
+  --shadow-card:0 2px 16px rgba(0,0,0,0.35),inset 0 1px 0 rgba(255,255,255,0.04);
+  --shadow-hover:0 6px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
+  --transition:border-color .25s,transform .2s,box-shadow .25s;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font-ui);overflow-x:hidden}
+/* 数字/价格 专用等宽字体 */
+.card-price,.card-change,.card-detail,.gauge-value,.gauge-sub,.ticker-price,.ticker-chg,
+.macro-card-value,.macro-yield-val,.driver-value,.driver-chg,.fg-score-num,.etf-price,.etf-chg,
+.etf-stat-val,.tool-result,.tool-result .highlight,.clock,
+[class*="font-variant-numeric"]{font-family:var(--font-mono)}
+/* 背景氛围光 */
+body::before{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50%);
+  width:70vw;height:55vw;
+  background:radial-gradient(ellipse,rgba(240,185,11,0.045) 0%,transparent 65%);
+  pointer-events:none;z-index:0}
+/* 无障碍：减少动效 */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
 a{color:var(--gold);text-decoration:none}
 .app{display:flex;height:100vh}
 
@@ -16,18 +45,18 @@ a{color:var(--gold);text-decoration:none}
 .sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,#0d1220,#0a0e17);border-right:1px solid var(--card-border);display:flex;flex-direction:column;align-items:center;padding-top:20px;flex-shrink:0;z-index:10;box-shadow:2px 0 16px rgba(0,0,0,0.3)}
 .sidebar-logo{width:36px;height:36px;margin-bottom:28px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--gold),#d4a000);border-radius:10px;box-shadow:0 2px 12px rgba(240,185,11,0.25)}
 .sidebar-logo svg{width:20px;height:20px}
-.sidebar-nav{display:flex;flex-direction:column;gap:2px;width:100%}
-.nav-item{display:flex;flex-direction:column;align-items:center;gap:5px;padding:16px 0;min-height:48px;cursor:pointer;color:var(--text3);transition:all .25s;border-left:3px solid transparent}
+.sidebar-nav{display:flex;flex-direction:column;gap:3px;width:100%}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 0;min-height:48px;cursor:pointer;color:var(--text3);transition:all .25s;border-left:3px solid transparent;position:relative}
 .nav-item:focus-visible{outline:2px solid var(--gold);outline-offset:-2px;border-radius:4px}
-.nav-item:hover{color:var(--text);background:rgba(255,255,255,0.04)}
-.nav-item.active{color:var(--gold);border-left-color:var(--gold);background:linear-gradient(90deg,rgba(240,185,11,0.1),transparent)}
+.nav-item:hover{color:var(--text2);background:rgba(255,255,255,0.07)}
+.nav-item.active{color:var(--gold);border-left-color:var(--gold);background:linear-gradient(90deg,rgba(240,185,11,0.14),rgba(240,185,11,0.03) 60%,transparent)}
 .nav-item .nav-icon{width:22px;height:22px;opacity:.6;transition:opacity .25s}
 .nav-item:hover .nav-icon,.nav-item.active .nav-icon{opacity:1}
 .nav-item .nav-label{font-size:11px;letter-spacing:.3px;font-weight:500}
 
 /* Main */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.header{display:flex;align-items:center;padding:10px 24px;border-bottom:1px solid var(--card-border);flex-shrink:0;background:linear-gradient(90deg,rgba(240,185,11,0.03),transparent 50%);gap:0;min-width:0}
+.header{display:flex;align-items:center;padding:10px 24px;border-bottom:1px solid var(--card-border);flex-shrink:0;background:linear-gradient(90deg,rgba(240,185,11,0.07),transparent 45%);gap:0;min-width:0}
 .header h1{font-size:20px;color:var(--gold);font-weight:700;line-height:1.2}
 .header h1 span{font-size:11px;color:var(--text3);font-weight:400;margin-left:0;letter-spacing:.5px}
 .header .clock{font-size:13px;color:var(--text2);font-variant-numeric:tabular-nums}
@@ -58,10 +87,10 @@ a{color:var(--gold);text-decoration:none}
 /* Cards */
 .gold-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .market-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:16px;transition:border-color .3s,transform .2s,box-shadow .2s}
-.card:hover{border-color:var(--gold);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}
-.card:active{transform:translateY(0);box-shadow:none}
-.card.gold-card{border-color:rgba(240,185,11,0.3);box-shadow:0 0 20px rgba(240,185,11,0.06);background:linear-gradient(135deg,var(--card) 0%,rgba(240,185,11,0.04) 100%)}
+.card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:16px;transition:var(--transition);box-shadow:var(--shadow-card)}
+.card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
+.card:active{transform:translateY(0);box-shadow:var(--shadow-card)}
+.card.gold-card{border-color:rgba(240,185,11,0.35);box-shadow:0 0 28px rgba(240,185,11,0.08),var(--shadow-card);background:linear-gradient(135deg,var(--card) 0%,rgba(240,185,11,0.05) 100%)}
 .card-label{font-size:13px;color:var(--text2);margin-bottom:4px}
 .card-price{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
 .gold-card .card-price{font-size:36px;color:var(--gold)}
@@ -76,9 +105,9 @@ a{color:var(--gold);text-decoration:none}
 
 /* Gauge cards */
 .gauge-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
-.gauge-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px 16px 14px;text-align:center;position:relative;display:flex;flex-direction:column;align-items:center;transition:border-color .3s,transform .2s,box-shadow .2s}
-.gauge-card:hover{border-color:var(--gold);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}
-.gauge-card:active{transform:translateY(0);box-shadow:none}
+.gauge-card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:18px 16px 14px;text-align:center;position:relative;display:flex;flex-direction:column;align-items:center;transition:var(--transition);box-shadow:var(--shadow-card)}
+.gauge-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
+.gauge-card:active{transform:translateY(0);box-shadow:var(--shadow-card)}
 .gauge-card .gauge-accent-line{position:absolute;top:0;left:12px;right:12px;height:2px;border-radius:0 0 2px 2px;background:linear-gradient(90deg,transparent,var(--gauge-accent,var(--gold)),transparent);opacity:.7}
 .gauge-arc{display:none}
 .gauge-value{font-size:34px;font-weight:700;margin:10px 0 2px;letter-spacing:.5px;font-variant-numeric:tabular-nums;line-height:1}
@@ -103,9 +132,9 @@ a{color:var(--gold);text-decoration:none}
 .macro-card[data-tip]::before{bottom:auto;top:calc(100% + 2px);border-top-color:transparent;border-bottom-color:#1a2236}
 
 /* Chart */
-.chart-section{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,0.15);transition:border-color .3s,transform .2s,box-shadow .2s}
-.chart-section:hover{border-color:var(--gold);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,0.35)}
-.chart-section:active{transform:translateY(0);box-shadow:0 2px 12px rgba(0,0,0,0.15)}
+.chart-section{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-card);transition:var(--transition)}
+.chart-section:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
+.chart-section:active{transform:translateY(0);box-shadow:var(--shadow-card)}
 .chart-tabs{display:flex;gap:8px;flex-wrap:wrap}
 .chart-tab{padding:8px 16px;border-radius:6px;font-size:13px;color:var(--text2);cursor:pointer;border:1px solid transparent;transition:all .2s;background:transparent;min-height:40px}
 .chart-tab:hover{color:var(--text);background:rgba(255,255,255,0.05)}
@@ -274,8 +303,8 @@ a{color:var(--gold);text-decoration:none}
 .macro-tab.active{color:var(--gold);background:var(--gold-dim);box-shadow:0 1px 4px rgba(0,0,0,0.2)}
 .macro-tab .flag{font-size:16px}
 .macro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.macro-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,0.15);transition:border-color .3s,transform .2s}
-.macro-card:hover{border-color:var(--gold);transform:translateY(-1px)}
+.macro-card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-card);transition:var(--transition)}
+.macro-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
 .macro-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .macro-card-name{font-size:13px;color:var(--text2)}
 .macro-card-badge{font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600}
@@ -286,7 +315,7 @@ a{color:var(--gold);text-decoration:none}
 .macro-card-unit{font-size:13px;color:var(--text3);font-weight:400}
 .macro-card-trend{display:flex;align-items:flex-end;gap:3px;height:36px;margin-top:12px}
 .macro-bar{flex:1;border-radius:3px 3px 0 0;min-width:0;transition:height .5s ease-out;position:relative}
-.macro-bar-label{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.macro-bar-label{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--text3);white-space:nowrap;font-variant-numeric:tabular-nums}
 .macro-quarters{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:4px;font-variant-numeric:tabular-nums}
 .macro-table{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,0.15);margin-top:14px}
 .macro-table h3{font-size:15px;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -301,16 +330,16 @@ a{color:var(--gold);text-decoration:none}
 .macro-sub-hdr::before{content:'';display:inline-block;width:3px;height:14px;background:var(--gold);border-radius:2px}
 /* ── 黄金核心驱动因子 ── */
 .gold-drivers{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.driver-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:16px 18px;transition:border-color .3s,transform .2s,box-shadow .2s;display:flex;flex-direction:column}
-.driver-card:hover{border-color:var(--gold);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,0.3)}
+.driver-card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:16px 18px;transition:var(--transition);box-shadow:var(--shadow-card);display:flex;flex-direction:column}
+.driver-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
 .driver-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px}
 .driver-value{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 .driver-unit{font-size:12px;color:var(--text3);font-weight:400;margin-left:2px}
 .driver-chg{font-size:12px;margin-top:5px;font-variant-numeric:tabular-nums}
 .driver-desc{font-size:10px;color:var(--text3);margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);line-height:1.5;flex:1}
 /* ── 避险情绪仪表盘 ── */
-.fg-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px;transition:border-color .3s,transform .2s}
-.fg-card:hover{border-color:var(--gold);transform:translateY(-1px)}
+.fg-card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:18px;transition:var(--transition);box-shadow:var(--shadow-card)}
+.fg-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
 .fg-top{display:flex;align-items:center;gap:16px;margin-bottom:16px}
 .fg-arc-wrap{flex-shrink:0}
 .fg-score-info{flex:1}
@@ -325,8 +354,8 @@ a{color:var(--gold);text-decoration:none}
 .fg-sub-val{width:26px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 /* ── ETF持仓 ── */
 .etf-stack{display:flex;flex-direction:column;gap:10px}
-.etf-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:14px 16px;transition:border-color .3s,transform .2s;display:flex;flex-direction:column;gap:8px}
-.etf-card:hover{border-color:var(--gold);transform:translateY(-1px)}
+.etf-card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:14px 16px;transition:var(--transition);box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:8px}
+.etf-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow-hover)}
 .etf-top{display:flex;justify-content:space-between;align-items:flex-start}
 .etf-name{font-size:14px;font-weight:700;color:var(--gold)}
 .etf-desc-txt{font-size:10px;color:var(--text3);margin-top:2px}
@@ -335,7 +364,7 @@ a{color:var(--gold);text-decoration:none}
 .etf-chg{font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums}
 .etf-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .etf-stat{background:rgba(0,0,0,0.2);border-radius:6px;padding:5px 8px}
-.etf-stat-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
+.etf-stat-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
 .etf-stat-val{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
 /* ── 央行黄金储备 ── */
 .cb-wrap{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:18px}
@@ -491,7 +520,7 @@ a{color:var(--gold);text-decoration:none}
 .pos-modal-overlay.show{display:flex}
 .pos-modal{background:#1a2535;border:1px solid var(--card-border);border-radius:14px;padding:20px;width:260px;box-shadow:0 16px 48px rgba(0,0,0,0.5)}
 /* 量化预测按钮 & 模态框 */
-.wl-predict-btn{position:absolute;top:6px;right:72px;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.35);border-radius:3px;color:#60a5fa;cursor:pointer;font-size:9px;font-weight:600;padding:2px 6px;transition:all .2s;white-space:nowrap;letter-spacing:0.4px}
+.wl-predict-btn{position:absolute;top:6px;right:72px;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.35);border-radius:3px;color:#60a5fa;cursor:pointer;font-size:10px;font-weight:600;padding:2px 6px;transition:all .2s;white-space:nowrap;letter-spacing:0.4px}
 .wl-predict-btn:hover{background:rgba(96,165,250,0.25);border-color:rgba(96,165,250,0.7)}
 .ml-modal{background:#1a2535;border:1px solid var(--card-border);border-radius:14px;padding:20px;width:300px;max-height:85vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.5)}
 .ml-direction{font-size:36px;text-align:center;margin:10px 0 4px}
@@ -651,7 +680,7 @@ a{color:var(--gold);text-decoration:none}
 .sdp-sig-dims{display:flex;gap:10px}
 .sdp-sig-dim{display:flex;flex-direction:column;align-items:center;gap:4px}
 .sdp-sig-dot{width:10px;height:10px;border-radius:50%}
-.sdp-sig-lbl{font-size:9px;color:var(--text3)}
+.sdp-sig-lbl{font-size:10px;color:var(--text3)}
 .screen-table tr{cursor:pointer}
 .wl-card{cursor:pointer}
 /* ===== 美股面板 ===== */
@@ -1151,7 +1180,7 @@ a{color:var(--gold);text-decoration:none}
                 <div style="flex-shrink:0;min-width:86px">
                   <div class="fg-score-num" id="fg-score-num">--</div>
                   <div class="fg-score-lbl" id="fg-score-lbl" style="font-size:12px">加载中</div>
-                  <div class="fg-score-sub" style="font-size:9px;margin-top:3px">0 弱避险 · 100 强避险</div>
+                  <div class="fg-score-sub" style="font-size:10px;margin-top:3px">0 弱避险 · 100 强避险</div>
                 </div>
                 <div class="fg-subs" id="fg-subs" style="flex:1;min-width:0">
                   <div class="fg-sub-row"><span class="fg-sub-name">VIX水平</span><div class="fg-sub-track"><div class="fg-sub-fill" style="width:0%"></div></div><span class="fg-sub-val">--</span></div>
@@ -1807,6 +1836,16 @@ async function fetchSinaData() {
   } catch(e) {}
 }
 
+async function updateSseSparkline() {
+  try {
+    const data = await fetchChartData('000001.SS','1d','5m'); if (!data?.prices.length) return;
+    const prices = data.prices;
+    const open = data.meta.chartPreviousClose||prices[0];
+    const isUp = prices[prices.length-1] >= open;
+    createMiniChart('chart-sse-mini', prices, isUp);
+  } catch(e) {}
+}
+
 async function fetchNews(cat) {
   try {
     const resp = await fetch(`/api/news?category=${cat}`); const articles = await resp.json();
@@ -1953,7 +1992,7 @@ async function runAiAnalysis() {
   const btn=document.getElementById('aiBtn'), content=document.getElementById('aiContent');
   btn.disabled=true; btn.textContent='正在采集数据...';
   content.innerHTML='<span class="ai-typing">正在采集最新行情数据</span>';
-  await Promise.allSettled([fetchGoldPrice(),fetchSilverPrice(),fetchExchangeRate(),fetchFearGreed(),fetchSinaData(),
+  await Promise.allSettled([fetchGoldPrice(),fetchSilverPrice(),fetchExchangeRate(),fetchFearGreed(),fetchSinaData(),updateSseSparkline(),
     ...Object.keys(symbolMap).map(s=>updateCardData(s)),fetchNews(state.currentNewsCategory)]);
   btn.textContent='分析中...';
   content.innerHTML='<span class="ai-typing">正在整合行情数据与市场资讯，生成分析报告</span>';
@@ -2616,7 +2655,7 @@ async function refreshAll() {
     fetchSilverPrice(), fetchFearGreed(), fetchBTC(),
     updateGoldCharts(),
     ...Object.keys(symbolMap).map(s=>updateCardData(s)),
-    fetchSinaData(), fetchNews(state.currentNewsCategory),
+    fetchSinaData(), updateSseSparkline(), fetchNews(state.currentNewsCategory),
     state.currentPage==='overview'?loadMainChart():Promise.resolve(),
     state.currentPage==='compare'?loadOverlayChart():Promise.resolve()
   ]);
@@ -4038,7 +4077,7 @@ async function fetchUSSectors() {
       return '<div class="sector-block" style="background:' + bg + ';cursor:pointer" onclick="showStockDetail(\'' + s.symbol + '\',\'' + escH(s.name) + ' ETF\',\'us\')">' +
         '<div class="sector-block-name">' + escH(s.name) + '</div>' +
         '<div class="sector-block-val">' + val + '</div>' +
-        '<div style="font-size:9px;opacity:.7;color:#fff">' + s.symbol + '</div></div>';
+        '<div style="font-size:10px;opacity:.7;color:#fff">' + s.symbol + '</div></div>';
     }).join('');
   } catch(e) {}
 }
@@ -4149,7 +4188,7 @@ async function fetchUSWatchlist() {
       html += '<button class="wl-del" data-sym="'+sym+'" title="删除">&times;</button>';
       html += '<button class="wl-pos-btn" onclick="posModalOpen(\'us_'+sym+'\',\''+escH(s.name||sym)+'\')" title="编辑持仓">持仓</button>';
       html += '<div style="display:flex;align-items:flex-start;justify-content:space-between">';
-      html += '<div><div class="wl-name">' + escH(s.name||sym) + '</div><div class="wl-code">'+s.symbol+(stateLabel?'<span style="font-size:9px;color:#ff9800">'+stateLabel+'</span>':'')+'</div></div>';
+      html += '<div><div class="wl-name">' + escH(s.name||sym) + '</div><div class="wl-code">'+s.symbol+(stateLabel?'<span style="font-size:10px;color:#ff9800">'+stateLabel+'</span>':'')+'</div></div>';
       html += '</div>';
       html += '<div class="wl-price" style="color:'+col+'">$'+s.price.toFixed(2)+'</div>';
       html += '<div class="wl-pct" style="color:'+col+'">'+pctStr+' <span style="font-size:11px;opacity:.8">'+chgStr+'</span></div>';
@@ -4338,7 +4377,7 @@ async function refreshUSAll() {
         return '<div class="sector-block" style="background:'+bg+';cursor:pointer" onclick="showStockDetail(\''+s.symbol+'\',\''+escH(s.name)+' ETF\',\'us\')">' +
           '<div class="sector-block-name">'+escH(s.name)+'</div>' +
           '<div class="sector-block-val">'+(isUp?'+':'')+(s.changePercent||0).toFixed(2)+'%</div>' +
-          '<div style="font-size:9px;opacity:.7;color:#fff">'+s.symbol+'</div></div>';
+          '<div style="font-size:10px;opacity:.7;color:#fff">'+s.symbol+'</div></div>';
       }).join('');
     }
     renderUSStats(indRes.status === 'fulfilled' ? indRes.value : [], secRes.value);
