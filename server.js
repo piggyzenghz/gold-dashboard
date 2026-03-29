@@ -260,6 +260,58 @@ app.get('/api/news', async (req, res) => {
   }
 });
 
+// ============ A股新闻 (证券时报) ============
+
+function parseStcnHtml(html) {
+  const items = [];
+  const seen = new Set();
+  const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/g;
+  let m;
+  while ((m = liRegex.exec(html)) !== null) {
+    const block = m[1];
+    const linkMatch = /href="(\/article\/detail\/[^"]+)"[^>]*>\s*([^<]{5,120}?)\s*<\/a>/.exec(block);
+    if (!linkMatch) continue;
+    const url = 'https://www.stcn.com' + linkMatch[1];
+    if (seen.has(url)) continue;
+    seen.add(url);
+    const title = linkMatch[2].trim();
+    const infoMatch = /<div class="info[^"]*">([\s\S]*?)<\/div>/.exec(block);
+    const infoSpans = infoMatch ? [...infoMatch[1].matchAll(/<span[^>]*>([^<]+)<\/span>/g)].map(s => s[1].trim()) : [];
+    const source = infoSpans[0] || '证券时报';
+    const time = infoSpans[infoSpans.length - 1] || '';
+    const summaryMatch = /<div class="text ellipsis-2">[\s\S]*?<a[^>]*>([^<]{10,}?)<\/a>/.exec(block);
+    const summary = summaryMatch ? summaryMatch[1].slice(0, 120) : '';
+    items.push({ title, url, source, time, summary });
+  }
+  return items.slice(0, 20);
+}
+
+app.get('/api/news/astock', async (req, res) => {
+  try {
+    const type = req.query.type || 'gs';
+    const allowed = ['gs', 'kx', 'yw'];
+    const t = allowed.includes(type) ? type : 'gs';
+    const cKey = `astock-news:${t}`;
+    const cached = cacheGet(cKey);
+    if (cached) return res.json(cached);
+
+    const resp = await fetch(`https://www.stcn.com/article/list.html?type=${t}&page=1`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+        'Referer': `https://www.stcn.com/article/list/${t}.html`,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    const json = await resp.json();
+    const articles = parseStcnHtml(json.data || '');
+    cacheSet(cKey, articles, 600);
+    res.json(articles);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ============ 国际资讯 (RSS) ============
 
 function parseRSSItems(xml, sourceName) {

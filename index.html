@@ -1042,16 +1042,28 @@ a{color:var(--gold);text-decoration:none}
             </div>
             <div class="news-list" id="intlNewsList"><div style="color:var(--text3);padding:40px 20px;text-align:center;font-size:13px">加载中...</div></div>
           </div>
-          <div class="news-panel">
+          <div class="news-panel" style="display:flex;flex-direction:column">
             <div class="news-header">
-              <h3>市场资讯</h3>
+              <h3>国内资讯</h3>
               <div class="news-tabs" id="newsTabs">
                 <button class="news-tab active" data-cat="finance">财经</button>
                 <button class="news-tab" data-cat="politics">时政</button>
                 <button class="news-tab" data-cat="world">国际</button>
               </div>
             </div>
-            <div class="news-list" id="newsList"></div>
+            <div class="news-list" id="newsList" style="flex:1"></div>
+            <!-- A股新闻 -->
+            <div style="border-top:1px solid var(--card-border);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;flex:1;min-height:0">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <div style="font-size:14px;color:var(--gold);font-weight:600;display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:4px;height:16px;background:var(--gold);border-radius:2px"></span>A股动态</div>
+                <div class="news-tabs" id="astockTabs">
+                  <button class="news-tab active" data-type="gs">股市</button>
+                  <button class="news-tab" data-type="kx">快讯</button>
+                  <button class="news-tab" data-type="yw">要闻</button>
+                </div>
+              </div>
+              <div class="news-list" id="astockNewsList" style="flex:1"><div style="color:var(--text3);padding:20px;text-align:center;font-size:13px">加载中...</div></div>
+            </div>
           </div>
         </div>
         <div class="calendar-section">
@@ -1868,6 +1880,34 @@ function renderNews(articles) {
   const list = document.getElementById('newsList');
   if (!articles?.length) { list.innerHTML='<div style="color:var(--text3);padding:40px 20px;text-align:center">暂无新闻</div>'; return; }
   list.innerHTML = articles.map(a=>`<div class="news-item" onclick="window.open('${a.url}','_blank')"><div class="news-title">${a.title}</div><div class="news-meta"><span class="news-source-tag">${a.source}</span><span>${a.time||''}</span></div></div>`).join('');
+}
+
+// ===== A股新闻 =====
+state.astockNewsType = 'gs';
+state.astockNewsCache = {};
+
+async function fetchAstockNews(type) {
+  try {
+    const list = document.getElementById('astockNewsList');
+    if (!state.astockNewsCache[type] && list) list.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center;font-size:13px">加载中...</div>';
+    const resp = await fetch(`/api/news/astock?type=${type}`);
+    const articles = await resp.json();
+    state.astockNewsCache[type] = articles;
+    if (type === state.astockNewsType) renderAstockNews(articles);
+  } catch(e) {
+    const list = document.getElementById('astockNewsList');
+    if (list) list.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center;font-size:13px">加载失败</div>';
+  }
+}
+
+function renderAstockNews(articles) {
+  const list = document.getElementById('astockNewsList');
+  if (!list) return;
+  if (!articles?.length) { list.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">暂无资讯</div>'; return; }
+  list.innerHTML = articles.map(a => `<div class="news-item" onclick="window.open('${a.url}','_blank')">
+    <div class="news-title">${a.title}</div>
+    <div class="news-meta"><span class="news-source-tag">${a.source}</span><span>${a.time||''}</span></div>
+  </div>`).join('');
 }
 
 // ===== 国外资讯 =====
@@ -2688,6 +2728,7 @@ document.getElementById('overlayToggles').addEventListener('click',e=>{const b=e
 document.getElementById('overlayRange').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#overlayRange button').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.overlayRange=b.dataset.range;state.overlayInterval=b.dataset.interval;loadOverlayChart()});
 document.getElementById('newsTabs').addEventListener('click',e=>{const t=e.target.closest('.news-tab');if(!t)return;document.querySelectorAll('#newsTabs .news-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');state.currentNewsCategory=t.dataset.cat;state.newsCache[t.dataset.cat]?renderNews(state.newsCache[t.dataset.cat]):fetchNews(t.dataset.cat)});
 document.getElementById('intlTabs').addEventListener('click',e=>{const t=e.target.closest('.news-tab');if(!t)return;document.querySelectorAll('#intlTabs .news-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');state.intlNewsCategory=t.dataset.cat;state.intlNewsCache[t.dataset.cat]?renderIntlNews(state.intlNewsCache[t.dataset.cat]):fetchIntlNews(t.dataset.cat)});
+document.getElementById('astockTabs').addEventListener('click',e=>{const t=e.target.closest('.news-tab');if(!t)return;document.querySelectorAll('#astockTabs .news-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');state.astockNewsType=t.dataset.type;state.astockNewsCache[t.dataset.type]?renderAstockNews(state.astockNewsCache[t.dataset.type]):fetchAstockNews(t.dataset.type)});
 
 ['calcAmount','calcUnit'].forEach(id=>document.getElementById(id).addEventListener('input',updateCalcResult));
 ['plBuyPrice','plGrams','plFee'].forEach(id=>document.getElementById(id).addEventListener('input',updatePLResult));
@@ -3438,12 +3479,14 @@ async function init() {
   renderAlerts(); fetchCalendar(); fetchMacroData(); fetchMacroLive(); showAiCache(); showScenarioCache(); refreshAll();
   fetchMacroDrivers(); fetchMacroEtf(); renderCbReserves();
   fetchIntlNews('markets');
+  fetchAstockNews('gs');
   setInterval(fetchMacroDrivers, 5 * 60 * 1000);
   setInterval(fetchMacroEtf, 5 * 60 * 1000);
   setInterval(fetchMacroLive, 15 * 60 * 1000);
   setInterval(refreshAll, 30000);
   setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world');}, 120000);
   setInterval(()=>{fetchIntlNews(state.intlNewsCategory);}, 600000);
+  setInterval(()=>{fetchAstockNews(state.astockNewsType);}, 300000);
 }
 init();
 window.addEventListener('resize',()=>{
