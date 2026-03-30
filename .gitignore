@@ -1,6 +1,8 @@
 node_modules/
 .firecrawl/
+.claude/
 *.log
 server.log
 .env
 *.bak.*
+cache.db
