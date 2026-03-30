@@ -1508,20 +1508,6 @@ a{color:var(--gold);text-decoration:none}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <span id="astock-signal-text">股金联动信号加载中...</span>
         </div>
-        <!-- 快照状态栏 -->
-        <div id="snapshot-bar" style="display:none;padding:10px 16px;background:rgba(240,185,11,0.06);border:1px solid rgba(240,185,11,0.15);border-radius:8px;margin-top:8px;flex-shrink:0">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <span style="font-size:12px;color:var(--gold);font-weight:600" id="snapshot-title">📦 数据快照</span>
-            <div style="display:flex;gap:6px">
-              <button id="snapshot-toggle-btn" onclick="toggleSnapshot()" style="padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid rgba(240,185,11,0.3);background:rgba(240,185,11,0.1);color:var(--gold)">暂停</button>
-              <button onclick="triggerSnapshot()" style="padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid rgba(240,185,11,0.3);background:rgba(240,185,11,0.1);color:var(--gold)">立即保存</button>
-            </div>
-          </div>
-          <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;margin-bottom:6px">
-            <div id="snapshot-progress" style="height:100%;width:0%;background:var(--gold);border-radius:2px;transition:width .4s ease-out"></div>
-          </div>
-          <div id="snapshot-detail" style="font-size:11px;color:var(--text3)">检查快照状态...</div>
-        </div>
         </div><!-- end as-scroll-body -->
 
       </div>
@@ -3722,77 +3708,10 @@ function startAStockRefresh() {
   fetchWatchlist();
   refreshAStockAll();
   astockRefreshTimer = setInterval(refreshAStockAll, 5000);
-  updateSnapshotBar();
-  if (!state._snapBarTimer) state._snapBarTimer = setInterval(updateSnapshotBar, 30000);
 }
 
 function stopAStockRefresh() {
   if (astockRefreshTimer) { clearInterval(astockRefreshTimer); astockRefreshTimer = null; }
-  if (state._snapBarTimer) { clearInterval(state._snapBarTimer); state._snapBarTimer = null; }
-}
-
-// ===== 快照状态栏 =====
-var _snapshotPaused = false;
-
-async function updateSnapshotBar() {
-  try {
-    var resp = await fetch('/api/snapshot/status');
-    var s = await resp.json();
-    var bar = document.getElementById('snapshot-bar');
-    if (!bar) return;
-    bar.style.display = '';
-
-    var title = document.getElementById('snapshot-title');
-    var detail = document.getElementById('snapshot-detail');
-    var progress = document.getElementById('snapshot-progress');
-
-    if (s.isTrading) {
-      title.textContent = '🟢 交易中 · 实时数据';
-      detail.textContent = '最近快照: ' + (s.latestDate || '无') + ' · 共 ' + s.totalSnapshots + ' 条记录';
-      progress.style.width = '100%';
-      progress.style.background = '#00c853';
-    } else if (s.isLunchBreak) {
-      title.textContent = '🟡 午休 · 保持上午数据';
-      detail.textContent = '上午数据已锁定，13:00恢复实时拉取 · 最近快照: ' + (s.latestDate || '无');
-      progress.style.width = '50%';
-      progress.style.background = '#ff9800';
-    } else {
-      title.textContent = '🔴 非交易时段 · 快照数据';
-      var dateList = Object.keys(s.dates || {}).slice(0, 3).join(', ');
-      detail.textContent = '使用 ' + (s.latestDate || '无') + ' 收盘快照 · ' + s.totalSnapshots + ' 条 · 历史: ' + (dateList || '无');
-      progress.style.width = '0%';
-      progress.style.background = 'var(--gold)';
-    }
-  } catch(e) {}
-}
-
-async function triggerSnapshot() {
-  var detail = document.getElementById('snapshot-detail');
-  var progress = document.getElementById('snapshot-progress');
-  if (detail) detail.textContent = '正在保存快照...';
-  if (progress) { progress.style.width = '30%'; progress.style.background = 'var(--gold)'; }
-  try {
-    var resp = await fetch('/api/snapshot/save', { method: 'POST' });
-    var d = await resp.json();
-    if (progress) progress.style.width = '100%';
-    if (detail) detail.textContent = '✅ 已保存 ' + d.date + ' 快照 (' + d.saved + '/' + d.total + ')';
-    setTimeout(updateSnapshotBar, 3000);
-  } catch(e) {
-    if (detail) detail.textContent = '❌ 保存失败: ' + e.message;
-  }
-}
-
-function toggleSnapshot() {
-  _snapshotPaused = !_snapshotPaused;
-  var btn = document.getElementById('snapshot-toggle-btn');
-  if (_snapshotPaused) {
-    btn.textContent = '启动';
-    stopAStockRefresh();
-    document.getElementById('snapshot-title').textContent = '⏸ 已暂停刷新';
-  } else {
-    btn.textContent = '暂停';
-    startAStockRefresh();
-  }
 }
 
 // A股子Tab交互
