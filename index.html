@@ -3697,7 +3697,8 @@ async function refreshAStockAll() {
   await Promise.allSettled([
     fetchAStockIndices(), fetchAStockSectors(), fetchAStockMarketStats(),
     fetchAStockNorthbound(), fetchAStockCapitalFlow(), fetchAStockLimit(), fetchAStockDragonTiger(),
-    fetchWatchlist(), loadSectorFlowChart(sectorFlowDays)
+    fetchWatchlist(), loadSectorFlowChart(sectorFlowDays),
+    state.astockRange === '1d' ? loadAStockChart() : Promise.resolve()
   ]);
   updateAStockSignal();
 }
