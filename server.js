@@ -1188,29 +1188,26 @@ app.get('/api/astock/market-stats', async (req, res) => {
   try {
     const data = await aStockSwr('astock:market-stats', 10, async () => {
       const emHdr = { 'Referer': 'https://quote.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
-      // push2delay 限制每页100条，需分页获取全部A股涨跌统计
-      const totalPages = 60;
-      const baseUrl = 'https://push2.eastmoney.com/api/qt/clist/get?pz=100&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f12&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048&fields=f3&po=0';
-      const pages = [];
-      for (let pn = 1; pn <= totalPages; pn++) {
-        pages.push(fetch(baseUrl + '&pn=' + pn, { headers: emHdr, redirect: 'follow', signal: AbortSignal.timeout(10000) })
-          .then(r => r.json()).then(d => d.data?.diff || []).catch(() => []));
-      }
-      const results = await Promise.all(pages);
-      const all = results.flat();
-      let advance = 0, decline = 0, flat = 0, limitUp = 0, limitDown = 0;
-      for (const s of all) {
-        const c = s.f3;
-        if (typeof c !== 'number') continue;
-        if (c > 0) advance++; else if (c < 0) decline++; else flat++;
-        if (c >= 9.9) limitUp++;
-        if (c <= -9.9) limitDown++;
-      }
-      // 成交额：从沪深两市指数 f48 字段获取
-      const [shR, szR] = await Promise.all([
+      // 用 ulist.np 一次请求获取沪深两市涨跌家数 + stock/get 获取成交额和涨停数
+      const [adR, shR, szR, luR, ldR] = await Promise.all([
+        // 沪市A股(1.000002) + 深市综指(0.399107) 的涨跌平家数
+        fetch('https://push2.eastmoney.com/api/qt/ulist.np/get?ut=bd1d9ddb04089700cf9c27f6f7426281&fields=f104,f105,f106&secids=1.000002,0.399107', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
+        // 沪深成交额
         fetch('https://push2.eastmoney.com/api/qt/stock/get?ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&secid=1.000001&fields=f48', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
         fetch('https://push2.eastmoney.com/api/qt/stock/get?ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&secid=0.399001&fields=f48', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
+        // 涨停/跌停：从clist排序取前100即可覆盖
+        fetch('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048&fields=f3', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
+        fetch('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=100&po=0&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048&fields=f3', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
       ]);
+      // 涨跌家数（沪+深合并）
+      const n = v => (typeof v === 'number' ? v : 0);
+      const diffs = adR.data?.diff || [];
+      let advance = 0, decline = 0, flat = 0;
+      for (const d of diffs) { advance += n(d.f104); decline += n(d.f105); flat += n(d.f106); }
+      // 涨停/跌停计数
+      const limitUp = (luR.data?.diff || []).filter(s => typeof s.f3 === 'number' && s.f3 >= 9.9).length;
+      const limitDown = (ldR.data?.diff || []).filter(s => typeof s.f3 === 'number' && s.f3 <= -9.9).length;
+      // 成交额
       const shTurnover = (typeof shR.data?.f48 === 'number' ? shR.data.f48 : 0) / 1e8;
       const szTurnover = (typeof szR.data?.f48 === 'number' ? szR.data.f48 : 0) / 1e8;
       return { limitUp, advance, decline, flat, limitDown, turnover: Math.round((shTurnover + szTurnover) * 100) / 100 };
