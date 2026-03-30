@@ -3752,11 +3752,22 @@ async function refreshAStockAll() {
   updateAStockSignal();
 }
 
+// A股交易时段判断（CST 9:25-11:35 & 12:55-15:05，工作日）
+function isAStockTradingTime() {
+  var now = new Date();
+  var cstH = (now.getUTCHours() + 8) % 24;
+  var cstM = now.getUTCMinutes();
+  var t = cstH * 100 + cstM;
+  var dow = new Date(now.getTime() + 8 * 3600000).getUTCDay();
+  return dow >= 1 && dow <= 5 && ((t >= 925 && t <= 1135) || (t >= 1255 && t <= 1505));
+}
+
 function startAStockRefresh() {
   if (astockRefreshTimer) return;
   fetchWatchlist();
   refreshAStockAll();
-  astockRefreshTimer = setInterval(refreshAStockAll, 5000);
+  var interval = isAStockTradingTime() ? 5000 : 60000; // 交易5秒，非交易60秒
+  astockRefreshTimer = setInterval(refreshAStockAll, interval);
 }
 
 function stopAStockRefresh() {
@@ -3996,14 +4007,17 @@ document.addEventListener('click', function(e) {
 var globalTimers = [];
 function startGlobalTimers() {
   if (globalTimers.length) return; // 已在运行
+  // 任一市场在交易中则用短间隔，否则用长间隔
+  var anyTrading = isAStockTradingTime() || isUSTradingTime();
+  var refreshInterval = anyTrading ? 30000 : 300000; // 交易30秒，非交易5分钟
   globalTimers = [
     setInterval(fetchMacroDrivers, 5 * 60 * 1000),
     setInterval(fetchMacroEtf, 5 * 60 * 1000),
     setInterval(fetchMacroLive, 15 * 60 * 1000),
-    setInterval(refreshAll, 30000),
-    setInterval(function(){fetchNews('finance');fetchNews('politics');fetchNews('world');}, 120000),
+    setInterval(refreshAll, refreshInterval),
+    setInterval(function(){fetchNews('finance');fetchNews('politics');fetchNews('world');}, anyTrading ? 120000 : 600000),
     setInterval(function(){fetchIntlNews(state.intlNewsCategory);}, 600000),
-    setInterval(function(){fetchAstockNews(state.astockNewsType);}, 300000),
+    setInterval(function(){fetchAstockNews(state.astockNewsType);}, anyTrading ? 300000 : 600000),
   ];
 }
 function stopGlobalTimers() {
@@ -5113,10 +5127,20 @@ async function refreshUSAll() {
   }
 }
 
+// 美股交易时段判断（CST 22:30-次日04:00，工作日）
+function isUSTradingTime() {
+  var now = new Date();
+  var cstH = (now.getUTCHours() + 8) % 24;
+  var t = cstH * 100 + now.getUTCMinutes();
+  var dow = new Date(now.getTime() + 8 * 3600000).getUTCDay();
+  return dow >= 1 && dow <= 5 && (t >= 2230 || t <= 400);
+}
+
 function startUSRefresh() {
   if (usRefreshTimer) return;
   refreshUSAll();
-  usRefreshTimer = setInterval(refreshUSAll, 15000);
+  var interval = isUSTradingTime() ? 15000 : 120000; // 交易15秒，非交易2分钟
+  usRefreshTimer = setInterval(refreshUSAll, interval);
 }
 function stopUSRefresh() {
   if (usRefreshTimer) { clearInterval(usRefreshTimer); usRefreshTimer = null; }
