@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="/node_modules/echarts/dist/echarts.min.js"></script>
+<script src="/echarts.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -1850,7 +1850,7 @@ a{color:var(--gold);text-decoration:none}
 
     </div>
     <div class="status-bar">
-      <span><span class="status-dot"></span>数据更新间隔: 30秒 | AI: MiniMax M2.7 | v1.14</span>
+      <span><span class="status-dot"></span>数据更新间隔: 30秒 | AI: MiniMax M2.7 | v1.14.1</span>
       <span id="lastUpdate">等待数据...</span>
     </div>
   </div>
@@ -2099,7 +2099,7 @@ async function fetchNews(cat) {
 function renderNews(articles) {
   const list = document.getElementById('newsList');
   if (!articles?.length) { list.innerHTML='<div style="color:var(--text3);padding:40px 20px;text-align:center">暂无新闻</div>'; return; }
-  list.innerHTML = articles.map(a=>`<div class="news-item" onclick="window.open('${a.url}','_blank')"><div class="news-title">${a.title}</div><div class="news-meta"><span class="news-source-tag">${a.source}</span><span>${a.time||''}</span></div></div>`).join('');
+  list.innerHTML = articles.map(a=>`<div class="news-item" data-url="${escH(a.url||'')}"><div class="news-title">${escH(a.title)}</div><div class="news-meta"><span class="news-source-tag">${escH(a.source)}</span><span>${escH(a.time||'')}</span></div></div>`).join('');
 }
 
 // ===== A股新闻 =====
@@ -2124,9 +2124,9 @@ function renderAstockNews(articles) {
   const list = document.getElementById('astockNewsList');
   if (!list) return;
   if (!articles?.length) { list.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">暂无资讯</div>'; return; }
-  list.innerHTML = articles.map(a => `<div class="news-item" onclick="window.open('${a.url}','_blank')">
-    <div class="news-title">${a.title}</div>
-    <div class="news-meta"><span class="news-source-tag">${a.source}</span><span>${a.time||''}</span></div>
+  list.innerHTML = articles.map(a => `<div class="news-item" data-url="${escH(a.url||'')}">
+    <div class="news-title">${escH(a.title)}</div>
+    <div class="news-meta"><span class="news-source-tag">${escH(a.source)}</span><span>${escH(a.time||'')}</span></div>
   </div>`).join('');
 }
 
@@ -2156,10 +2156,10 @@ function renderIntlNews(articles) {
     const t = a.pubDate ? new Date(a.pubDate).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
     const titleDisplay = a.titleZh || a.title;
     const showEn = a.titleZh && a.titleZh !== a.title;
-    return `<div class="news-item" onclick="window.open('${a.link}','_blank')">
-      <div class="news-title">${titleDisplay}</div>
-      ${showEn ? `<div class="news-title-en">${a.title}</div>` : ''}
-      <div class="news-meta"><span class="news-source-tag">${a.source}</span><span>${t}</span></div>
+    return `<div class="news-item" data-url="${escH(a.link||'')}">
+      <div class="news-title">${escH(titleDisplay)}</div>
+      ${showEn ? `<div class="news-title-en">${escH(a.title)}</div>` : ''}
+      <div class="news-meta"><span class="news-source-tag">${escH(a.source)}</span><span>${t}</span></div>
     </div>`;
   }).join('');
 }
@@ -2306,7 +2306,7 @@ async function triggerDailyReport() {
   const btn = document.getElementById('aiDailyBtn');
   btn.disabled = true; btn.textContent = '生成中...';
   try {
-    const resp = await fetch('/api/daily-report/generate', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({type:'manual'}) });
+    const resp = await securePost('/api/daily-report/generate', {type:'manual'});
     const data = await resp.json();
     if (data.ok) {
       btn.textContent = '✅ 已推送';
@@ -2341,7 +2341,7 @@ async function runAiAnalysis() {
   const n=(state.newsCache.finance||[]).slice(0,8).map(a=>`- ${a.title}`).join('\n');
   if(!m.trim()) { content.textContent='数据采集失败，请稍后再试'; btn.disabled=false; btn.textContent='重新分析'; return; }
   try {
-    const resp=await fetch('/api/ai/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({marketData:m,newsData:n})});
+    const resp=await securePost('/api/ai/analyze',{marketData:m,newsData:n});
     const data=await resp.json(); content.classList.remove('ai-typing');
     const text=data.analysis||data.error||'分析暂时不可用'; content.textContent='';
     // 缓存结果
@@ -2869,7 +2869,7 @@ async function fetchScenarios() {
   if (state.marketData.usdcny) m += `美元/人民币: ${state.marketData.usdcny.toFixed(4)}\n`;
 
   try {
-    var resp = await fetch('/api/ai/scenario', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ marketSummary: m }) });
+    var resp = await securePost('/api/ai/scenario', { marketSummary: m });
     var result = await resp.json();
     if (!result.scenarios) throw new Error(result.error || 'No data');
     scenarioCache = { scenarios: result.scenarios, time: Date.now() };
@@ -3736,7 +3736,21 @@ document.getElementById('astock-range-el').addEventListener('click', e => {
 // ===== A股主题选股 =====
 state.astockTheme = null;
 
-function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escH(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// 安全 POST/DELETE 请求（自动带 Bearer Token）
+function securePost(url, body) {
+  var h = {'Content-Type':'application/json'};
+  var token = localStorage.getItem('apiToken');
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  return fetch(url, {method:'POST', headers:h, body:JSON.stringify(body)});
+}
+function secureDelete(url) {
+  var h = {};
+  var token = localStorage.getItem('apiToken');
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  return fetch(url, {method:'DELETE', headers:h});
+}
 
 async function fetchAStockScreen(theme) {
   document.querySelectorAll('.astock-theme-tab').forEach(function(t){ t.classList.toggle('active', t.dataset.theme === theme); });
@@ -3823,7 +3837,7 @@ async function serverConfigGet(key) {
   try { const r = await fetch('/api/config/' + key); return (await r.json()).value; } catch(e) { return null; }
 }
 function serverConfigSet(key, value) {
-  fetch('/api/config/' + key, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({value}) }).catch(()=>{});
+  securePost('/api/config/' + key, {value}).catch(()=>{});
 }
 async function initConfig() {
   try {
@@ -3859,7 +3873,7 @@ async function fetchMlPredict(symbol, market) {
     if (symbol.length === 6) ySymbol = symbol.startsWith('6') ? symbol + '.SS' : symbol + '.SZ';
   }
   try {
-    var resp = await fetch('/api/ml/predict', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({symbol: ySymbol}) });
+    var resp = await securePost('/api/ml/predict', {symbol: ySymbol});
     var d = await resp.json();
     if (d.error) { body.innerHTML = '<div style="color:#ff3d57;font-size:12px;padding:12px">预测失败: ' + escH(d.error) + '</div>'; return; }
     var isUp = d.direction === 'up';
@@ -3893,7 +3907,7 @@ async function sdpMlPredict() {
   btn.disabled = true; btn.textContent = '训练中...';
   content.innerHTML = '<div style="padding:16px 0;color:var(--text3);font-size:12px;text-align:center"><span class="ai-typing">正在训练模型，请稍候...</span></div>';
   try {
-    var resp = await fetch('/api/ml/predict', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({symbol: sdpState.yahoo}) });
+    var resp = await securePost('/api/ml/predict', {symbol: sdpState.yahoo});
     var d = await resp.json();
     if (d.error) { content.innerHTML = '<div style="color:#ff3d57;font-size:12px;padding:10px 0">预测失败: ' + escH(d.error) + '</div>'; btn.disabled=false; btn.textContent='重新运行'; return; }
     var isUp = d.direction === 'up';
@@ -3923,19 +3937,47 @@ async function sdpMlPredict() {
 
 // Init
 if(typeof Notification!=='undefined'&&Notification.permission==='default') Notification.requestPermission().catch(()=>{});
+// 新闻列表事件委托：点击 data-url 的 news-item 安全打开链接
+document.addEventListener('click', function(e) {
+  var item = e.target.closest('.news-item[data-url]');
+  if (item && item.dataset.url) window.open(item.dataset.url, '_blank', 'noopener');
+});
+
+// 全局定时器引用，Page Visibility 暂停/恢复
+var globalTimers = [];
+function startGlobalTimers() {
+  if (globalTimers.length) return; // 已在运行
+  globalTimers = [
+    setInterval(fetchMacroDrivers, 5 * 60 * 1000),
+    setInterval(fetchMacroEtf, 5 * 60 * 1000),
+    setInterval(fetchMacroLive, 15 * 60 * 1000),
+    setInterval(refreshAll, 30000),
+    setInterval(function(){fetchNews('finance');fetchNews('politics');fetchNews('world');}, 120000),
+    setInterval(function(){fetchIntlNews(state.intlNewsCategory);}, 600000),
+    setInterval(function(){fetchAstockNews(state.astockNewsType);}, 300000),
+  ];
+}
+function stopGlobalTimers() {
+  globalTimers.forEach(function(t){ clearInterval(t); });
+  globalTimers = [];
+}
+// 后台标签页暂停所有定时器，节省内存和网络
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    stopGlobalTimers();
+  } else {
+    startGlobalTimers();
+    refreshAll(); // 回到前台立即刷新
+  }
+});
+
 async function init() {
   await initConfig();
   renderAlerts(); fetchCalendar(); fetchMacroData(); fetchMacroLive(); showAiCache(); showScenarioCache(); refreshAll();
   fetchMacroDrivers(); fetchMacroEtf(); renderCbReserves();
   fetchIntlNews('markets');
   fetchAstockNews('gs');
-  setInterval(fetchMacroDrivers, 5 * 60 * 1000);
-  setInterval(fetchMacroEtf, 5 * 60 * 1000);
-  setInterval(fetchMacroLive, 15 * 60 * 1000);
-  setInterval(refreshAll, 30000);
-  setInterval(()=>{fetchNews('finance');fetchNews('politics');fetchNews('world');}, 120000);
-  setInterval(()=>{fetchIntlNews(state.intlNewsCategory);}, 600000);
-  setInterval(()=>{fetchAstockNews(state.astockNewsType);}, 300000);
+  startGlobalTimers();
 }
 init();
 window.addEventListener('resize',()=>{
@@ -5163,7 +5205,7 @@ document.addEventListener('click', function(e) {
       e.stopPropagation();
       var id = parseInt(delBtn.dataset.id);
       if (!confirm('确定删除此报告？')) return;
-      fetch('/api/research/' + id, { method: 'DELETE' }).then(function() {
+      secureDelete('/api/research/' + id).then(function() {
         if (currentReportId === id) {
           currentReportId = null;
           document.getElementById('research-empty-tip').style.display = '';
@@ -5202,11 +5244,7 @@ document.addEventListener('click', function(e) {
       document.getElementById('rp-step2').className = 'rp-step active';
     }, 20000);
 
-    fetch('/api/research/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: sym, market: researchMarket })
-    }).then(function(r) {
+    securePost('/api/research/generate', { symbol: sym, market: researchMarket }).then(function(r) {
       if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || '生成失败'); });
       return r.json();
     }).then(function(rpt) {
@@ -6087,8 +6125,6 @@ document.addEventListener('click', function(e) {
     if (dd && !e.target.closest('#cr-wl-input') && !e.target.closest('#cr-wl-dropdown')) { dd.classList.remove('show'); }
   }
 });
-</script>
-
 </script>
 </body>
 </html>

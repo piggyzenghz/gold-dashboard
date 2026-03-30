@@ -1,24 +1,54 @@
 require('dotenv').config();
 const express = require('express');
 const cron = require('node-cron');
+const fs = require('fs');
+const path = require('path');
 const YahooFinance = require('yahoo-finance2').default;
 const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT) || 3000;
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
+const API_TOKEN = process.env.API_TOKEN || '';
 
-app.use(express.static(__dirname));
+const rateLimit = require('express-rate-limit');
+
+app.set('trust proxy', 1); // Cloudflare 代理
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+
+// ============ 安全中间件 ============
+
+// 全局速率限制：每 IP 每分钟 120 次
+app.use(rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, validate: { xForwardedForHeader: false } }));
+
+// AI / ML / 研究 端点严格限流：每 IP 每分钟 5 次
+const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: '请求过于频繁，请稍后重试' }, validate: { xForwardedForHeader: false } });
+app.use('/api/ai/', aiLimiter);
+app.use('/api/ml/', aiLimiter);
+app.use('/api/research/generate', aiLimiter);
+
+// Bearer Token 认证：保护写入/删除/AI端点
+function requireAuth(req, res, next) {
+  if (!API_TOKEN) return next(); // 未配置 token 时跳过（本地开发）
+  const auth = req.headers.authorization;
+  if (auth === `Bearer ${API_TOKEN}`) return next();
+  res.status(401).json({ error: '未授权访问' });
+}
+app.post('/api/config/:key', requireAuth);
+app.post('/api/ai/*', requireAuth);
+app.post('/api/ml/*', requireAuth);
+app.post('/api/research/*', requireAuth);
+app.delete('/api/research/*', requireAuth);
+app.post('/api/daily-report/*', requireAuth);
+app.post('/api/snapshot/*', requireAuth);
 
 // ============ SQLite 数据层 (⑦缓存 + ⑧配置同步) ============
 const Database = require('better-sqlite3');
 const { execFile } = require('child_process');
-const fs = require('fs');
-const path = require('path');
 
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -181,11 +211,15 @@ async function aStockSwr(key, tradingTTL, fetchFn) {
 }
 
 // ============ 配置同步 API (⑧多设备同步) ============
+const CONFIG_ALLOWED_KEYS = new Set(['watchlist', 'usWatchlist', 'cryptoWatchlist', 'alerts', 'theme', 'settings']);
+
 app.get('/api/config/:key', (req, res) => {
+  if (!CONFIG_ALLOWED_KEYS.has(req.params.key)) return res.status(400).json({ error: 'invalid key' });
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get(req.params.key);
   res.json({ value: row ? JSON.parse(row.value) : null });
 });
 app.post('/api/config/:key', (req, res) => {
+  if (!CONFIG_ALLOWED_KEYS.has(req.params.key)) return res.status(400).json({ error: 'invalid key' });
   const { value } = req.body;
   db.prepare('INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)').run(
     req.params.key, JSON.stringify(value), Date.now()
@@ -545,7 +579,15 @@ async function translateTitle(text) {
 
 async function translateTitles(titles) {
   if (!titles.length) return titles;
-  return Promise.all(titles.map(t => translateTitle(t)));
+  // 限流 3 并发，避免 Google Translate 429
+  const results = new Array(titles.length);
+  for (let i = 0; i < titles.length; i += 3) {
+    const batch = titles.slice(i, i + 3).map((t, j) =>
+      translateTitle(t).then(r => { results[i + j] = r; })
+    );
+    await Promise.all(batch);
+  }
+  return results;
 }
 
 const RSS_SOURCES = {
@@ -695,38 +737,27 @@ app.get('/api/calendar', async (req, res) => {
 
 // ============ 宏观实时汇率 & 收益率 ============
 
-let macroLiveCache = null;
-let macroLiveCacheAt = 0;
-const MACRO_LIVE_TTL = 15 * 60 * 1000; // 15分钟缓存
-
 app.get('/api/macro/live', async (req, res) => {
-  if (macroLiveCache && Date.now() - macroLiveCacheAt < MACRO_LIVE_TTL) {
-    return res.json(macroLiveCache);
-  }
   try {
-    // G8主要货币汇率 + 关键债券收益率
-    const symbols = [
-      'EURUSD=X','GBPUSD=X','USDJPY=X','USDCNY=X','AUDUSD=X','USDCAD=X','USDCHF=X','USDKRW=X',
-      '^TNX','^FVX','^IRX','^TYX'
-    ];
-    const quotes = await yahooFinance.quote(symbols);
-    const fx = {}, yields = {};
-    const fxSymbols = ['EURUSD=X','GBPUSD=X','USDJPY=X','USDCNY=X','AUDUSD=X','USDCAD=X','USDCHF=X','USDKRW=X'];
-    const yieldSymbols = ['^TNX','^FVX','^IRX','^TYX'];
-    for (const q of (Array.isArray(quotes) ? quotes : [quotes])) {
-      const sym = q.symbol;
-      const entry = { price: q.regularMarketPrice, changePct: q.regularMarketChangePercent, change: q.regularMarketChange };
-      if (fxSymbols.includes(sym)) fx[sym] = entry;
-      if (yieldSymbols.includes(sym)) yields[sym] = entry;
-    }
-    macroLiveCache = { fx, yields, updatedAt: new Date().toISOString() };
-    macroLiveCacheAt = Date.now();
-    res.json(macroLiveCache);
-  } catch(e) {
-    // 如有缓存则返回旧缓存
-    if (macroLiveCache) return res.json(macroLiveCache);
-    res.status(500).json({ error: e.message });
-  }
+    const data = await withCache('macro:live', 900, async () => {
+      const symbols = [
+        'EURUSD=X','GBPUSD=X','USDJPY=X','USDCNY=X','AUDUSD=X','USDCAD=X','USDCHF=X','USDKRW=X',
+        '^TNX','^FVX','^IRX','^TYX'
+      ];
+      const quotes = await yahooFinance.quote(symbols);
+      const fx = {}, yields = {};
+      const fxSymbols = ['EURUSD=X','GBPUSD=X','USDJPY=X','USDCNY=X','AUDUSD=X','USDCAD=X','USDCHF=X','USDKRW=X'];
+      const yieldSymbols = ['^TNX','^FVX','^IRX','^TYX'];
+      for (const q of (Array.isArray(quotes) ? quotes : [quotes])) {
+        const sym = q.symbol;
+        const entry = { price: q.regularMarketPrice, changePct: q.regularMarketChangePercent, change: q.regularMarketChange };
+        if (fxSymbols.includes(sym)) fx[sym] = entry;
+        if (yieldSymbols.includes(sym)) yields[sym] = entry;
+      }
+      return { fx, yields, updatedAt: new Date().toISOString() };
+    });
+    res.json(data);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/macro', (req, res) => {
@@ -875,9 +906,16 @@ app.get('/api/macro/etf', async (req, res) => {
 
 // ============ AI 分析 (DeepSeek) ============
 
+// 清洗用户输入：截断长度、移除潜在注入指令
+function sanitizeAIInput(s, maxLen = 4000) {
+  if (typeof s !== 'string') return '';
+  return s.slice(0, maxLen).replace(/\b(ignore|disregard|forget|override)\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/gi, '[FILTERED]');
+}
+
 app.post('/api/ai/analyze', async (req, res) => {
   try {
-    const { marketData, newsData } = req.body;
+    const marketData = sanitizeAIInput(req.body.marketData);
+    const newsData = sanitizeAIInput(req.body.newsData);
 
     let prompt = `你是一位资深的黄金市场分析师。请根据以下实时市场数据，分析当前黄金价格走势，并给出你的专业判断。
 
@@ -931,7 +969,7 @@ ${newsData}
 
 app.post('/api/ai/scenario', async (req, res) => {
   try {
-    const { marketSummary } = req.body;
+    const marketSummary = sanitizeAIInput(req.body.marketSummary);
 
     // 用管道分隔格式代替 JSON，彻底避免 AI 在描述文字中输出未转义引号导致解析崩溃
     const prompt = `你是专业黄金分析师。根据以下市场数据，给出黄金近期（1-2周）走势的三种情景预测。
@@ -1044,8 +1082,7 @@ app.get('/api/astock/indices', async (req, res) => {
 
 // 申万行业板块涨跌
 // 申万行业历史资金流向（主力净流入累计）
-const sectorFlowCaches = {}; // key: days，分别缓存不同时间段
-const SECTOR_FLOW_TTL = 15 * 60 * 1000;
+const SECTOR_FLOW_TTL = 900; // 15分钟（秒）
 const SECTORS_CFG = [
   { code: 'BK1201', name: '电子' },
   { code: 'BK1207', name: '计算机' },
@@ -1060,49 +1097,49 @@ const SECTORS_CFG = [
 ];
 app.get('/api/astock/sector-flow-history', async (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 252);
-  const cKey = String(days);
-  const cached = sectorFlowCaches[cKey];
-  if (cached && Date.now() - cached.ts < SECTOR_FLOW_TTL) return res.json(cached.data);
-  const hdrs = { 'Referer': 'https://data.eastmoney.com/', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
-  const delay = ms => new Promise(r => setTimeout(r, ms));
-  const fetchOne = async s => {
-    const url = `https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=90.${s.code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&ut=7eea3edcaed734bea9cbfc24409ed989`;
-    const resp = await fetch(url, { headers: hdrs, signal: AbortSignal.timeout(10000) });
-    const data = await resp.json();
-    const klines = (data.data?.klines || []).slice(-days);
-    let cum = 0;
-    const dates = [], values = [];
-    for (const k of klines) {
-      const p = k.split(',');
-      cum += parseFloat(p[1] || 0) / 1e8;
-      dates.push(p[0]);
-      values.push(parseFloat(cum.toFixed(2)));
-    }
-    return { code: s.code, name: s.name, dates, values };
-  };
   try {
-    // 分3批请求，每批间隔300ms，避免触发限流
-    const all = [];
-    for (let i = 0; i < SECTORS_CFG.length; i += 4) {
-      const batch = SECTORS_CFG.slice(i, i + 4);
-      const res2 = await Promise.allSettled(batch.map(fetchOne));
-      all.push(...res2);
-      if (i + 4 < SECTORS_CFG.length) await delay(300);
-    }
-    const sectors = all.filter(r => r.status === 'fulfilled' && r.value.dates.length > 0).map(r => r.value);
-    const dates = sectors.reduce((a, b) => a.dates.length >= b.dates.length ? a : b, { dates: [] }).dates;
-    const result = { dates, sectors };
-    sectorFlowCaches[cKey] = { data: result, ts: Date.now() };
-    res.json(result);
+    const data = await withCache(`sectorflow:${days}`, SECTOR_FLOW_TTL, async () => {
+      const hdrs = { 'Referer': 'https://data.eastmoney.com/', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
+      const delay = ms => new Promise(r => setTimeout(r, ms));
+      const fetchOne = async s => {
+        const url = `https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=90.${s.code}&fields1=f1,f2,f3,f7&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&ut=7eea3edcaed734bea9cbfc24409ed989`;
+        const resp = await fetch(url, { headers: hdrs, signal: AbortSignal.timeout(10000) });
+        const data = await resp.json();
+        const klines = (data.data?.klines || []).slice(-days);
+        let cum = 0;
+        const dates = [], values = [];
+        for (const k of klines) {
+          const p = k.split(',');
+          cum += parseFloat(p[1] || 0) / 1e8;
+          dates.push(p[0]);
+          values.push(parseFloat(cum.toFixed(2)));
+        }
+        return { code: s.code, name: s.name, dates, values };
+      };
+      const all = [];
+      for (let i = 0; i < SECTORS_CFG.length; i += 4) {
+        const batch = SECTORS_CFG.slice(i, i + 4);
+        const res2 = await Promise.allSettled(batch.map(fetchOne));
+        all.push(...res2);
+        if (i + 4 < SECTORS_CFG.length) await delay(300);
+      }
+      const sectors = all.filter(r => r.status === 'fulfilled' && r.value.dates.length > 0).map(r => r.value);
+      const dates = sectors.reduce((a, b) => a.dates.length >= b.dates.length ? a : b, { dates: [] }).dates;
+      return { dates, sectors };
+    });
+    res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/astock/sectors', async (req, res) => {
   try {
-    const url = 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:90+t:2+f:!50&fields=f2,f3,f4,f12,f14';
-    const resp = await fetch(url, { headers: { 'Referer': 'https://finance.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
-    const data = await resp.json();
-    res.json((data.data?.diff || []).map(i => ({ code: i.f12, name: i.f14, changePercent: i.f3, price: i.f2 / 100, change: i.f4 / 100 })));
+    const data = await aStockSwr('astock:sectors', 30, async () => {
+      const url = 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:90+t:2+f:!50&fields=f2,f3,f4,f12,f14';
+      const resp = await fetch(url, { headers: { 'Referer': 'https://finance.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
+      const d = await resp.json();
+      return (d.data?.diff || []).map(i => ({ code: i.f12, name: i.f14, changePercent: i.f3, price: i.f2 / 100, change: i.f4 / 100 }));
+    });
+    res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1244,17 +1281,20 @@ app.get('/api/astock/northbound', async (req, res) => {
 // 行业资金流向（替代热门股票，24h可用）
 app.get('/api/astock/capitalflow', async (req, res) => {
   try {
-    const po = req.query.type === 'outflow' ? 0 : 1; // 1=流入降序，0=流出升序
-    const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=12&po=${po}&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f62&fs=m:90+t:2+f:!50&fields=f12,f14,f62,f184,f3`;
-    const resp = await fetch(url, { headers: { 'Referer': 'https://data.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
-    const data = await resp.json();
-    const toNum = v => typeof v === 'number' ? v : 0;
-    res.json((data.data?.diff || []).map(i => ({
-      code: i.f12, name: i.f14,
-      netFlow: toNum(i.f62) / 1e8,   // 净流入/出（亿元）
-      pct: toNum(i.f184),             // 主力占比(%)
-      changePercent: toNum(i.f3)      // 今日涨跌幅
-    })));
+    const po = req.query.type === 'outflow' ? 0 : 1;
+    const data = await aStockSwr(`astock:capitalflow:${po}`, 30, async () => {
+      const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=12&po=${po}&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f62&fs=m:90+t:2+f:!50&fields=f12,f14,f62,f184,f3`;
+      const resp = await fetch(url, { headers: { 'Referer': 'https://data.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
+      const d = await resp.json();
+      const toNum = v => typeof v === 'number' ? v : 0;
+      return (d.data?.diff || []).map(i => ({
+        code: i.f12, name: i.f14,
+        netFlow: toNum(i.f62) / 1e8,
+        pct: toNum(i.f184),
+        changePercent: toNum(i.f3)
+      }));
+    });
+    res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1293,28 +1333,30 @@ app.get('/api/astock/limit', async (req, res) => {
 // 龙虎榜
 app.get('/api/astock/dragon-tiger', async (req, res) => {
   try {
-    const url = 'https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_BILLBOARD_TRADEALLNEW&columns=ALL&pageNumber=1&pageSize=20&sortTypes=-1,-1&sortColumns=LATEST_TDATE,SECURITY_CODE&source=WEB&client=WEB';
-    const resp = await fetch(url, { headers: { 'Referer': 'https://data.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
-    const data = await resp.json();
-    // 去重（同一个股可能多次上榜），只保留每只股的最新记录
-    const seen = new Set();
-    const items = [];
-    for (const i of (data.result?.data || [])) {
-      if (!seen.has(i.SECURITY_CODE)) {
-        seen.add(i.SECURITY_CODE);
-        items.push({
-          code: i.SECURITY_CODE, name: i.SECURITY_NAME_ABBR,
-          date: (i.LATEST_TDATE || '').split(' ')[0],
-          changeRate: i.CHANGE_RATE || 0, closePrice: i.CLOSE_PRICE || 0,
-          netBuy: (i.BILLBOARD_NET_BUY || 0) / 1e8,
-          buyAmt: (i.BILLBOARD_BUY_AMT || 0) / 1e8,
-          dealAmt: (i.BILLBOARD_DEAL_AMT || 0) / 1e8,
-          times: i.BILLBOARD_TIMES || 1
-        });
+    const data = await aStockSwr('astock:dragon-tiger', 60, async () => {
+      const url = 'https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_BILLBOARD_TRADEALLNEW&columns=ALL&pageNumber=1&pageSize=20&sortTypes=-1,-1&sortColumns=LATEST_TDATE,SECURITY_CODE&source=WEB&client=WEB';
+      const resp = await fetch(url, { headers: { 'Referer': 'https://data.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
+      const d = await resp.json();
+      const seen = new Set();
+      const items = [];
+      for (const i of (d.result?.data || [])) {
+        if (!seen.has(i.SECURITY_CODE)) {
+          seen.add(i.SECURITY_CODE);
+          items.push({
+            code: i.SECURITY_CODE, name: i.SECURITY_NAME_ABBR,
+            date: (i.LATEST_TDATE || '').split(' ')[0],
+            changeRate: i.CHANGE_RATE || 0, closePrice: i.CLOSE_PRICE || 0,
+            netBuy: (i.BILLBOARD_NET_BUY || 0) / 1e8,
+            buyAmt: (i.BILLBOARD_BUY_AMT || 0) / 1e8,
+            dealAmt: (i.BILLBOARD_DEAL_AMT || 0) / 1e8,
+            times: i.BILLBOARD_TIMES || 1
+          });
+        }
+        if (items.length >= 10) break;
       }
-      if (items.length >= 10) break;
-    }
-    res.json(items);
+      return items;
+    });
+    res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2013,16 +2055,16 @@ app.get('/api/stock/technical', async (req, res) => {
 
     const ma20 = sma(closes, 20), ma50 = sma(closes, 50), ma200 = sma(closes, 200);
     const bb_mid = ma20;
-    const bb_upper = closes.map((_, i) => {
-      if (i < 19) return null;
-      const s = closes.slice(i - 19, i + 1), m = s.reduce((a,b)=>a+b,0)/20;
-      return +(m + 2 * Math.sqrt(s.reduce((a,b)=>a+(b-m)**2,0)/20)).toFixed(3);
-    });
-    const bb_lower = closes.map((_, i) => {
-      if (i < 19) return null;
-      const s = closes.slice(i - 19, i + 1), m = s.reduce((a,b)=>a+b,0)/20;
-      return +(m - 2 * Math.sqrt(s.reduce((a,b)=>a+(b-m)**2,0)/20)).toFixed(3);
-    });
+    // Bollinger Bands — 单遍计算 upper/lower
+    const bb_upper = new Array(closes.length).fill(null);
+    const bb_lower = new Array(closes.length).fill(null);
+    for (let i = 19; i < closes.length; i++) {
+      const s = closes.slice(i - 19, i + 1);
+      const m = s.reduce((a, b) => a + b, 0) / 20;
+      const sd = Math.sqrt(s.reduce((a, b) => a + (b - m) ** 2, 0) / 20);
+      bb_upper[i] = +(m + 2 * sd).toFixed(3);
+      bb_lower[i] = +(m - 2 * sd).toFixed(3);
+    }
 
     // RSI(14)
     const rsi = (() => {
@@ -2566,6 +2608,13 @@ cron.schedule('5 20 * * 1-5', async () => {
   console.log('[US Snapshot] Done:', saved + '/' + types.length);
 }, { timezone: 'Asia/Shanghai' });
 
+// SQLite 过期缓存清理（每小时）
+const _cacheCleanup = db.prepare('DELETE FROM cache WHERE expires_at < ?');
+cron.schedule('17 * * * *', () => {
+  const deleted = _cacheCleanup.run(Date.now());
+  if (deleted.changes > 0) console.log(`[Cache cleanup] 清理 ${deleted.changes} 条过期记录`);
+});
+
 // 每交易日 08:55 CST 提前预热核心数据 (UTC 00:55)
 cron.schedule('55 0 * * 1-5', async () => {
   console.log('[Pre-warm] Starting...');
@@ -2582,6 +2631,19 @@ cron.schedule('55 0 * * 1-5', async () => {
   } catch(e) { console.error('[Pre-warm] Error:', e.message); }
 }, { timezone: 'Asia/Shanghai' });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\n🏆 小猪猪财经看板已启动: http://localhost:${PORT}\n`);
 });
+
+// 优雅退出：关闭 HTTP + SQLite
+function gracefulShutdown(signal) {
+  console.log(`\n[${signal}] 正在关闭...`);
+  server.close(() => {
+    db.close();
+    console.log('SQLite 连接已关闭，进程退出');
+    process.exit(0);
+  });
+  setTimeout(() => { db.close(); process.exit(1); }, 5000);
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
