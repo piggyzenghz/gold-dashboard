@@ -3596,7 +3596,7 @@ document.getElementById('astock-screen-wrap').addEventListener('click', function
 });
 
 // 涨停板雷达 / 龙虎榜 / 热门资金流 点击进入个股详情
-['astock-lu-list','astock-dt-list','astock-inflow-list','astock-outflow-list'].forEach(function(id) {
+['astock-lu-list','astock-ld-list','astock-dt-list','astock-inflow-list','astock-outflow-list'].forEach(function(id) {
   var el = document.getElementById(id); if (!el) return;
   el.addEventListener('click', function(e) {
     var item = e.target.closest('.stock-item[data-code]'); if (!item) return;
