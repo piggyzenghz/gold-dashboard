@@ -926,7 +926,7 @@ BEAR|情景标题|概率(整数%)|目标价位区间|80字以内分析
 app.get('/api/astock/trends', async (req, res) => {
   try {
     const secid = req.query.secid || '1.000001'; // 默认上证指数
-    const data = await withCache(`astock:trends:${secid}`, isAStockOpen() ? 5 : 43200, async () => {
+    const data = await withCache(`astock:trends:${secid}`, isAStockOpen() ? 5 : 60, async () => {
       const url = `https://push2.eastmoney.com/api/qt/stock/trends2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ut=fa5fd1943c7b386f172d6893dbbd4dc0&iscr=0`;
       const resp = await fetch(url, { headers: { 'Referer': 'https://quote.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }, redirect: 'follow' });
       const d = await resp.json();
