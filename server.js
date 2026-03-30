@@ -71,6 +71,46 @@ async function withCache(key, ttlSeconds, fetchFn) {
   return data;
 }
 
+// A股交易时段判定
+function cstNow() {
+  const now = new Date();
+  const h = (now.getUTCHours() + 8) % 24;
+  const m = now.getUTCMinutes();
+  const dow = new Date(now.getTime() + 8 * 3600000).getUTCDay();
+  return { h, m, t: h * 100 + m, dow, isWeekday: dow >= 1 && dow <= 5 };
+}
+function isAStockOpen() {
+  const { t, isWeekday } = cstNow();
+  return isWeekday && ((t >= 925 && t <= 1135) || (t >= 1255 && t <= 1505));
+}
+// stale-while-revalidate: 过期返回旧数据，同时标记需要刷新
+function cacheGetStale(key) {
+  const row = _cGet.get(key);
+  if (!row) return { data: null, stale: false };
+  const data = JSON.parse(row.value);
+  const stale = Date.now() > row.expires_at;
+  return { data, stale };
+}
+async function swr(key, ttlSeconds, fetchFn) {
+  const { data, stale } = cacheGetStale(key);
+  if (data !== null && !stale) return data;
+  if (data !== null && stale) {
+    fetchFn().then(fresh => { if (fresh != null) cacheSet(key, fresh, ttlSeconds); }).catch(() => {});
+    return data;
+  }
+  const fresh = await fetchFn();
+  if (fresh != null) cacheSet(key, fresh, ttlSeconds);
+  return fresh;
+}
+// A股专用缓存：非交易时段有缓存直接返回，不打外部API
+async function aStockSwr(key, tradingTTL, fetchFn) {
+  if (!isAStockOpen()) {
+    const { data } = cacheGetStale(key);
+    if (data) return data;
+  }
+  return swr(key, isAStockOpen() ? tradingTTL : 43200, fetchFn);
+}
+
 // ============ 配置同步 API (⑧多设备同步) ============
 app.get('/api/config/:key', (req, res) => {
   const row = db.prepare('SELECT value FROM config WHERE key = ?').get(req.params.key);
