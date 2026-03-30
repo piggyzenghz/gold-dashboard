@@ -412,8 +412,7 @@ app.get('/api/news/astock', async (req, res) => {
       ]);
       articles = dedup([...sinaItems, ...emItems]).slice(0, 40);
     } else {
-      // gs/yw：证券时报 + 新浪财经
-      const sinaLid = t === 'yw' ? '2513' : '2562';
+      // gs/yw：证券时报 + 新浪财经（金融+产经双源）
       try {
         const resp = await fetch(`https://www.stcn.com/article/list.html?type=${t}&page=1`, {
           headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'Referer': `https://www.stcn.com/article/list/${t}.html`, 'X-Requested-With': 'XMLHttpRequest' },
@@ -422,8 +421,9 @@ app.get('/api/news/astock', async (req, res) => {
         const json = await resp.json();
         articles = parseStcnHtml(json.data || '');
       } catch(e) { console.warn('[stcn]', t, e.message); }
-      const sinaItems = await fetchSinaRoll(sinaLid);
-      articles = dedup([...articles, ...sinaItems]).slice(0, 30);
+      const sinaLids = t === 'yw' ? ['2513', '2514'] : ['2509', '2510'];
+      const sinaResults = await Promise.all(sinaLids.map(lid => fetchSinaRoll(lid, 20)));
+      articles = dedup([...articles, ...sinaResults.flat()]).slice(0, 30);
     }
 
     cacheSet(cKey, articles, t === 'kx' ? 180 : 300);
