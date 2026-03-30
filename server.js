@@ -34,6 +34,13 @@ db.exec(`
     value TEXT NOT NULL,
     updated_at INTEGER NOT NULL DEFAULT 0
   );
+  CREATE TABLE IF NOT EXISTS market_snapshot (
+    date TEXT NOT NULL,
+    type TEXT NOT NULL,
+    data TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY(date, type)
+  );
 `);
 
 // 智能 TTL：交易时段用短缓存，非交易时段用长缓存
@@ -83,6 +90,16 @@ function isAStockOpen() {
   const { t, isWeekday } = cstNow();
   return isWeekday && ((t >= 925 && t <= 1135) || (t >= 1255 && t <= 1505));
 }
+// 是否在实际交易时段（不含午休）
+function isAStockTrading() {
+  const { t, isWeekday } = cstNow();
+  return isWeekday && ((t >= 930 && t <= 1130) || (t >= 1300 && t <= 1500));
+}
+// 午休时段（工作日 11:31-12:59）
+function isAStockLunchBreak() {
+  const { t, isWeekday } = cstNow();
+  return isWeekday && t >= 1131 && t <= 1259;
+}
 // stale-while-revalidate: 过期返回旧数据，同时标记需要刷新
 function cacheGetStale(key) {
   const row = _cGet.get(key);
@@ -102,13 +119,46 @@ async function swr(key, ttlSeconds, fetchFn) {
   if (fresh != null) cacheSet(key, fresh, ttlSeconds);
   return fresh;
 }
-// A股专用缓存：非交易时段有缓存直接返回，不打外部API
+// 快照持久化
+const _snapGet = db.prepare('SELECT data FROM market_snapshot WHERE type = ? ORDER BY date DESC LIMIT 1');
+const _snapGetDate = db.prepare('SELECT data FROM market_snapshot WHERE date = ? AND type = ?');
+const _snapSet = db.prepare('INSERT OR REPLACE INTO market_snapshot (date, type, data, updated_at) VALUES (?, ?, ?, ?)');
+
+function snapshotSave(date, type, data) {
+  _snapSet.run(date, type, JSON.stringify(data), Date.now());
+}
+function snapshotLoad(type) {
+  const row = _snapGet.get(type);
+  return row ? JSON.parse(row.data) : null;
+}
+function getCSTDateStr() {
+  return new Date(Date.now() + 8 * 3600000).toISOString().split('T')[0];
+}
+
+// A股专用缓存：三时段逻辑（交易/午休/非交易）
 async function aStockSwr(key, tradingTTL, fetchFn) {
-  if (!isAStockOpen()) {
+  // 交易时段：正常缓存+实时拉取
+  if (isAStockTrading()) {
+    return withCache(key, tradingTTL, fetchFn);
+  }
+  // 午休时段：返回缓存中上午的数据，不发外部请求
+  if (isAStockLunchBreak()) {
+    const cached = cacheGet(key);
+    if (cached) return cached;
     const { data } = cacheGetStale(key);
     if (data) return data;
+    // 午休但无缓存（刚重启），尝试从快照读
+    const snap = snapshotLoad(key.replace(/:/g, '_'));
+    if (snap) return snap;
+    return fetchFn(); // 最后兜底
   }
-  return swr(key, isAStockOpen() ? tradingTTL : 43200, fetchFn);
+  // 非交易时段：优先读快照，其次读过期缓存
+  const snapType = key.replace(/:/g, '_');
+  const snap = snapshotLoad(snapType);
+  if (snap) return snap;
+  const { data } = cacheGetStale(key);
+  if (data) return data;
+  return fetchFn(); // 完全无数据时兜底
 }
 
 // ============ 配置同步 API (⑧多设备同步) ============
@@ -926,7 +976,7 @@ BEAR|情景标题|概率(整数%)|目标价位区间|80字以内分析
 app.get('/api/astock/trends', async (req, res) => {
   try {
     const secid = req.query.secid || '1.000001'; // 默认上证指数
-    const data = await withCache(`astock:trends:${secid}`, isAStockOpen() ? 5 : 60, async () => {
+    const data = await aStockSwr(`astock:trends:${secid}`, 5, async () => {
       const url = `https://push2.eastmoney.com/api/qt/stock/trends2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ut=fa5fd1943c7b386f172d6893dbbd4dc0&iscr=0`;
       const resp = await fetch(url, { headers: { 'Referer': 'https://quote.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }, redirect: 'follow' });
       const d = await resp.json();
@@ -2393,7 +2443,78 @@ app.get('/api/crypto/fng', async (req, res) => {
   }
 });
 
+// 快照状态查询
+app.get('/api/snapshot/status', (req, res) => {
+  const rows = db.prepare('SELECT date, type, updated_at FROM market_snapshot ORDER BY date DESC, type').all();
+  const dates = {};
+  for (const r of rows) {
+    if (!dates[r.date]) dates[r.date] = {};
+    dates[r.date][r.type] = r.updated_at;
+  }
+  res.json({
+    latestDate: rows[0]?.date || null,
+    totalSnapshots: rows.length,
+    isTrading: isAStockTrading(),
+    isLunchBreak: isAStockLunchBreak(),
+    isOpen: isAStockOpen(),
+    dates
+  });
+});
+
+// 手动触发快照保存
+app.post('/api/snapshot/save', async (req, res) => {
+  const date = getCSTDateStr();
+  const types = [
+    { key: 'astock_indices', url: '/api/astock/indices' },
+    { key: 'astock_market-stats', url: '/api/astock/market-stats' },
+    { key: 'astock_sectors', url: '/api/astock/sectors' },
+    { key: 'astock_limit', url: '/api/astock/limit' },
+    { key: 'astock_northbound', url: '/api/astock/northbound' },
+    { key: 'astock_capitalflow_1', url: '/api/astock/capitalflow?type=inflow' },
+    { key: 'astock_capitalflow_0', url: '/api/astock/capitalflow?type=outflow' },
+    { key: 'astock_trends_1.000001', url: '/api/astock/trends?secid=1.000001' },
+    { key: 'astock_trends_0.399001', url: '/api/astock/trends?secid=0.399001' },
+    { key: 'astock_trends_1.000300', url: '/api/astock/trends?secid=1.000300' },
+    { key: 'astock_trends_0.399006', url: '/api/astock/trends?secid=0.399006' },
+  ];
+  let saved = 0;
+  for (const t of types) {
+    try {
+      const data = await fetch('http://localhost:3000' + t.url).then(r => r.json());
+      if (data) { snapshotSave(date, t.key, data); saved++; }
+    } catch(e) {}
+  }
+  res.json({ date, saved, total: types.length });
+});
+
 // ============ 数据预热 Cron ============
+// 收盘快照保存 (15:05 CST = 07:05 UTC)
+cron.schedule('5 7 * * 1-5', async () => {
+  console.log('[Snapshot] Saving end-of-day snapshots...');
+  const date = getCSTDateStr();
+  const snapshotTypes = [
+    { key: 'astock_indices', fn: () => fetch('http://localhost:3000/api/astock/indices').then(r => r.json()) },
+    { key: 'astock_market-stats', fn: () => fetch('http://localhost:3000/api/astock/market-stats').then(r => r.json()) },
+    { key: 'astock_sectors', fn: () => fetch('http://localhost:3000/api/astock/sectors').then(r => r.json()) },
+    { key: 'astock_limit', fn: () => fetch('http://localhost:3000/api/astock/limit').then(r => r.json()) },
+    { key: 'astock_northbound', fn: () => fetch('http://localhost:3000/api/astock/northbound').then(r => r.json()) },
+    { key: 'astock_capitalflow_1', fn: () => fetch('http://localhost:3000/api/astock/capitalflow?type=inflow').then(r => r.json()) },
+    { key: 'astock_capitalflow_0', fn: () => fetch('http://localhost:3000/api/astock/capitalflow?type=outflow').then(r => r.json()) },
+    { key: 'astock_trends_1.000001', fn: () => fetch('http://localhost:3000/api/astock/trends?secid=1.000001').then(r => r.json()) },
+    { key: 'astock_trends_0.399001', fn: () => fetch('http://localhost:3000/api/astock/trends?secid=0.399001').then(r => r.json()) },
+    { key: 'astock_trends_1.000300', fn: () => fetch('http://localhost:3000/api/astock/trends?secid=1.000300').then(r => r.json()) },
+    { key: 'astock_trends_0.399006', fn: () => fetch('http://localhost:3000/api/astock/trends?secid=0.399006').then(r => r.json()) },
+  ];
+  let saved = 0;
+  for (const s of snapshotTypes) {
+    try {
+      const data = await s.fn();
+      if (data) { snapshotSave(date, s.key, data); saved++; }
+    } catch(e) { console.warn('[Snapshot]', s.key, e.message); }
+  }
+  console.log('[Snapshot] Done:', saved + '/' + snapshotTypes.length);
+}, { timezone: 'Asia/Shanghai' });
+
 // 每交易日 08:55 CST 提前预热核心数据 (UTC 00:55)
 cron.schedule('55 0 * * 1-5', async () => {
   console.log('[Pre-warm] Starting...');
