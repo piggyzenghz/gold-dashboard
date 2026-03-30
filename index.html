@@ -3063,20 +3063,22 @@ async function loadAStockChart(code, range, interval) {
       var lastPrice = tData.prices[tData.prices.length-1];
       var isUp = lastPrice >= preClose;
       var color = isUp ? '#ff3d57' : '#00c853';
+      // x轴标签：避免11:30与13:00重叠
+      var _showLabels = {'09:30':1,'10:00':1,'10:30':1,'11:00':1,'13:00':1,'13:30':1,'14:00':1,'14:30':1,'15:00':1};
       chart.setOption({
         tooltip:{trigger:'axis',backgroundColor:'rgba(19,26,42,0.95)',borderColor:'#1e2a3a',textStyle:{color:'#e8eaed',fontSize:12},
           formatter:function(p){ var v=p[0]; if(v.value==null) return ''; var chg=((v.value-preClose)/preClose*100).toFixed(2); return v.axisValue+'<br/>'+v.value.toFixed(2)+' <span style="color:'+(chg>=0?'#ff3d57':'#00c853')+'">'+( chg>=0?'+':'')+chg+'%</span>'; }},
         grid:{top:20,right:55,bottom:25,left:65},
         xAxis:{data:fullTimeline,axisLine:{lineStyle:{color:'#1e2a3a'}},axisLabel:{color:'#556677',fontSize:10,
-          interval:function(i){ return i===0||fullTimeline[i]==='10:00'||fullTimeline[i]==='10:30'||fullTimeline[i]==='11:00'||fullTimeline[i]==='11:30'||fullTimeline[i]==='13:00'||fullTimeline[i]==='13:30'||fullTimeline[i]==='14:00'||fullTimeline[i]==='14:30'||fullTimeline[i]==='15:00'; }},
+          interval:function(i){ return !!_showLabels[fullTimeline[i]]; }},
           splitLine:{show:false}},
-        yAxis:{scale:true,axisLine:{show:false},axisLabel:{color:'#556677',fontSize:10},
+        yAxis:{scale:true,axisLine:{show:false},axisLabel:{color:'#556677',fontSize:10,formatter:function(v){return v.toFixed(0);}},
           splitLine:{lineStyle:{color:'#1e2a3a',type:'dashed'}}},
-        visualMap:{show:false,pieces:[{gt:preClose,color:'#ff3d57'},{lte:preClose,color:'#00c853'}],seriesIndex:0},
-        series:[{type:'line',data:prices,smooth:false,symbol:'none',connectNulls:false,lineStyle:{width:1.5},
+        series:[{type:'line',data:prices,smooth:true,symbol:'none',connectNulls:false,
+          lineStyle:{width:2,color:color},
           markLine:{silent:true,symbol:'none',lineStyle:{color:'#556677',type:'dashed',width:1},
             data:[{yAxis:preClose,label:{show:true,position:'insideEndTop',formatter:function(){return '昨收 '+preClose.toFixed(2);},color:'#556677',fontSize:9}}]},
-          areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color+'20'},{offset:1,color:color+'00'}])}}]
+          areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color+'40'},{offset:1,color:color+'05'}])}}]
       }, true);
       return;
     } catch(e) {}
