@@ -100,6 +100,25 @@ function isAStockLunchBreak() {
   const { t, isWeekday } = cstNow();
   return isWeekday && t >= 1131 && t <= 1259;
 }
+// 美股交易时段（CST 22:30-次日04:00，工作日）
+function isUSMarketTrading() {
+  const { t, isWeekday } = cstNow();
+  return isWeekday && (t >= 2230 || t <= 400);
+}
+// 美股专用缓存：交易时段实时拉取，非交易时段读快照
+async function usStockSwr(key, tradingTTL, fetchFn) {
+  if (isUSMarketTrading()) {
+    return withCache(key, tradingTTL, fetchFn);
+  }
+  // 非交易时段：优先读快照，其次读过期缓存
+  const snapType = key.replace(/:/g, '_');
+  const snap = snapshotLoad(snapType);
+  if (snap) return snap;
+  const { data } = cacheGetStale(key);
+  if (data) return data;
+  return fetchFn();
+}
+
 // stale-while-revalidate: 过期返回旧数据，同时标记需要刷新
 function cacheGetStale(key) {
   const row = _cGet.get(key);
@@ -1633,16 +1652,19 @@ const US_THEMES = {
 
 app.get('/api/us/indices', async (req, res) => {
   try {
-    const symbols = US_INDICES.map(i => i.symbol);
-    const results = await yahooFinance.quote(symbols);
-    const arr = Array.isArray(results) ? results : [results];
-    const nameMap = Object.fromEntries(US_INDICES.map(i => [i.symbol, i.name]));
-    res.json(arr.map(q => ({
-      symbol: q.symbol, name: nameMap[q.symbol] || q.symbol,
-      price: q.regularMarketPrice, change: q.regularMarketChange,
-      changePercent: q.regularMarketChangePercent, prevClose: q.regularMarketPreviousClose,
-      marketState: q.marketState,
-    })));
+    const data = await usStockSwr('us:indices', 15, async () => {
+      const symbols = US_INDICES.map(i => i.symbol);
+      const results = await yahooFinance.quote(symbols);
+      const arr = Array.isArray(results) ? results : [results];
+      const nameMap = Object.fromEntries(US_INDICES.map(i => [i.symbol, i.name]));
+      return arr.map(q => ({
+        symbol: q.symbol, name: nameMap[q.symbol] || q.symbol,
+        price: q.regularMarketPrice, change: q.regularMarketChange,
+        changePercent: q.regularMarketChangePercent, prevClose: q.regularMarketPreviousClose,
+        marketState: q.marketState,
+      }));
+    });
+    res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1703,14 +1725,17 @@ app.get('/api/ticker', async (req, res) => {
 
 app.get('/api/us/sectors', async (req, res) => {
   try {
-    const symbols = US_SECTOR_ETFS.map(s => s.symbol);
-    const results = await yahooFinance.quote(symbols);
-    const arr = Array.isArray(results) ? results : [results];
-    const nameMap = Object.fromEntries(US_SECTOR_ETFS.map(s => [s.symbol, s.name]));
-    res.json(arr.map(q => ({
-      symbol: q.symbol, name: nameMap[q.symbol] || q.symbol,
-      price: q.regularMarketPrice, changePercent: q.regularMarketChangePercent,
-    })));
+    const data = await usStockSwr('us:sectors', 30, async () => {
+      const symbols = US_SECTOR_ETFS.map(s => s.symbol);
+      const results = await yahooFinance.quote(symbols);
+      const arr = Array.isArray(results) ? results : [results];
+      const nameMap = Object.fromEntries(US_SECTOR_ETFS.map(s => [s.symbol, s.name]));
+      return arr.map(q => ({
+        symbol: q.symbol, name: nameMap[q.symbol] || q.symbol,
+        price: q.regularMarketPrice, changePercent: q.regularMarketChangePercent,
+      }));
+    });
+    res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1881,34 +1906,37 @@ app.get('/api/us/etf-holdings/:symbol', async (req, res) => {
 app.get('/api/us/movers', async (req, res) => {
   try {
     const type = req.query.type || 'gainers';
-    const isActive = type === 'active';
-    const isLosers = type === 'losers';
-    const body = {
-      markets: ['america'],
-      symbols: { query: { types: ['stock'] }, tickers: [] },
-      options: { lang: 'en' },
-      columns: ['name','description','close','change','volume','market_cap_basic'],
-      filter: [
-        { left: 'market_cap_basic', operation: 'greater', right: isActive ? 5e9 : 1e9 },
-        { left: 'volume', operation: 'greater', right: isActive ? 5e6 : 5e5 },
-        ...(!isActive && !isLosers ? [{ left: 'change', operation: 'greater', right: 1.5 }] : []),
-        ...(!isActive && isLosers  ? [{ left: 'change', operation: 'less', right: -1.5 }] : []),
-      ],
-      sort: { sortBy: isActive ? 'volume' : 'change', sortOrder: isLosers ? 'asc' : 'desc' },
-      range: [0, 10],
-    };
-    const resp = await fetch('https://scanner.tradingview.com/america/scan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Origin': 'https://www.tradingview.com', 'Referer': 'https://www.tradingview.com/', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
-      body: JSON.stringify(body),
+    const data = await usStockSwr(`us:movers:${type}`, 30, async () => {
+      const isActive = type === 'active';
+      const isLosers = type === 'losers';
+      const body = {
+        markets: ['america'],
+        symbols: { query: { types: ['stock'] }, tickers: [] },
+        options: { lang: 'en' },
+        columns: ['name','description','close','change','volume','market_cap_basic'],
+        filter: [
+          { left: 'market_cap_basic', operation: 'greater', right: isActive ? 5e9 : 1e9 },
+          { left: 'volume', operation: 'greater', right: isActive ? 5e6 : 5e5 },
+          ...(!isActive && !isLosers ? [{ left: 'change', operation: 'greater', right: 1.5 }] : []),
+          ...(!isActive && isLosers  ? [{ left: 'change', operation: 'less', right: -1.5 }] : []),
+        ],
+        sort: { sortBy: isActive ? 'volume' : 'change', sortOrder: isLosers ? 'asc' : 'desc' },
+        range: [0, 10],
+      };
+      const resp = await fetch('https://scanner.tradingview.com/america/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Origin': 'https://www.tradingview.com', 'Referer': 'https://www.tradingview.com/', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error('TV ' + resp.status);
+      const d = await resp.json();
+      return (d.data || []).map(item => {
+        const v = item.d;
+        const raw = String(v[0] ?? '');
+        return { ticker: raw.includes(':') ? raw.split(':')[1] : raw, name: String(v[1] ?? ''), close: v[2], changePct: v[3], volume: v[4], marketCap: v[5] };
+      });
     });
-    if (!resp.ok) throw new Error('TV ' + resp.status);
-    const data = await resp.json();
-    res.json((data.data || []).map(item => {
-      const d = item.d;
-      const raw = String(d[0] ?? '');
-      return { ticker: raw.includes(':') ? raw.split(':')[1] : raw, name: String(d[1] ?? ''), close: d[2], changePct: d[3], volume: d[4], marketCap: d[5] };
-    }));
+    res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -2476,6 +2504,11 @@ app.post('/api/snapshot/save', async (req, res) => {
     { key: 'astock_trends_0.399001', url: '/api/astock/trends?secid=0.399001' },
     { key: 'astock_trends_1.000300', url: '/api/astock/trends?secid=1.000300' },
     { key: 'astock_trends_0.399006', url: '/api/astock/trends?secid=0.399006' },
+    { key: 'us_indices', url: '/api/us/indices' },
+    { key: 'us_sectors', url: '/api/us/sectors' },
+    { key: 'us_movers_gainers', url: '/api/us/movers?type=gainers' },
+    { key: 'us_movers_losers', url: '/api/us/movers?type=losers' },
+    { key: 'us_movers_active', url: '/api/us/movers?type=active' },
   ];
   let saved = 0;
   for (const t of types) {
@@ -2513,6 +2546,27 @@ cron.schedule('5 7 * * 1-5', async () => {
     } catch(e) { console.warn('[Snapshot]', s.key, e.message); }
   }
   console.log('[Snapshot] Done:', saved + '/' + snapshotTypes.length);
+}, { timezone: 'Asia/Shanghai' });
+
+// 美股收盘快照保存 (04:05 CST = 20:05 UTC)
+cron.schedule('5 20 * * 1-5', async () => {
+  console.log('[US Snapshot] Saving...');
+  const date = getCSTDateStr();
+  const types = [
+    { key: 'us_indices', fn: () => fetch('http://localhost:3000/api/us/indices').then(r => r.json()) },
+    { key: 'us_sectors', fn: () => fetch('http://localhost:3000/api/us/sectors').then(r => r.json()) },
+    { key: 'us_movers_gainers', fn: () => fetch('http://localhost:3000/api/us/movers?type=gainers').then(r => r.json()) },
+    { key: 'us_movers_losers', fn: () => fetch('http://localhost:3000/api/us/movers?type=losers').then(r => r.json()) },
+    { key: 'us_movers_active', fn: () => fetch('http://localhost:3000/api/us/movers?type=active').then(r => r.json()) },
+  ];
+  let saved = 0;
+  for (const s of types) {
+    try {
+      const data = await s.fn();
+      if (data) { snapshotSave(date, s.key, data); saved++; }
+    } catch(e) { console.warn('[US Snapshot]', s.key, e.message); }
+  }
+  console.log('[US Snapshot] Done:', saved + '/' + types.length);
 }, { timezone: 'Asia/Shanghai' });
 
 // 每交易日 08:55 CST 提前预热核心数据 (UTC 00:55)
