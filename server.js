@@ -1034,19 +1034,35 @@ app.get('/api/astock/capitalflow', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 涨跌停板（使用龙虎榜数据，收盘后仍可用）
+// 涨跌停板（盘中用 clist 实时数据，盘后用龙虎榜历史数据）
 app.get('/api/astock/limit', async (req, res) => {
   try {
-    // 获取最新交易日的龙虎榜个股（包含涨跌幅），取前200条
-    const url = 'https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DAILYBILLBOARD_PROFILE&columns=ALL&pageNumber=1&pageSize=200&sortTypes=-1,-1&sortColumns=TRADE_DATE,CHANGE_RATE&source=WEB&client=WEB';
-    const resp = await fetch(url, { headers: { 'Referer': 'https://data.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
-    const data = await resp.json();
-    const items = data.result?.data || [];
-    const map = i => ({ code: i.SECURITY_CODE, name: i.SECURITY_NAME_ABBR, changePercent: i.CHANGE_RATE || 0, netAmt: (i.BILLBOARD_NET_AMT || 0) / 1e8 });
-    const limitUp = items.filter(i => (i.CHANGE_RATE || 0) >= 9.9).map(map);
-    const limitDown = items.filter(i => (i.CHANGE_RATE || 0) <= -9.9).map(map);
-    const tradeDate = items[0]?.TRADE_DATE?.split(' ')[0] || '';
-    res.json({ limitUp, limitDown, upCount: limitUp.length, downCount: limitDown.length, date: tradeDate });
+    const data = await aStockSwr('astock:limit', 15, async () => {
+      const emHdr = { 'Referer': 'https://quote.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
+      if (isAStockOpen()) {
+        // 盘中：从 clist 获取实时涨跌停个股
+        const base = 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=100&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048&fields=f3,f12,f14,f62';
+        const [upR, dnR] = await Promise.all([
+          fetch(base + '&po=1', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
+          fetch(base + '&po=0', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
+        ]);
+        const mapItem = s => ({ code: s.f12, name: s.f14, changePercent: s.f3, netAmt: (typeof s.f62 === 'number' ? s.f62 : 0) / 1e8 });
+        const limitUp = (upR.data?.diff || []).filter(s => typeof s.f3 === 'number' && s.f3 >= 9.9).map(mapItem);
+        const limitDown = (dnR.data?.diff || []).filter(s => typeof s.f3 === 'number' && s.f3 <= -9.9).map(mapItem);
+        const today = new Date(Date.now() + 8 * 3600000).toISOString().split('T')[0];
+        return { limitUp, limitDown, upCount: limitUp.length, downCount: limitDown.length, date: today };
+      }
+      // 盘后：从龙虎榜获取历史数据
+      const url = 'https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DAILYBILLBOARD_PROFILE&columns=ALL&pageNumber=1&pageSize=200&sortTypes=-1,-1&sortColumns=TRADE_DATE,CHANGE_RATE&source=WEB&client=WEB';
+      const resp = await fetch(url, { headers: { 'Referer': 'https://data.eastmoney.com', ...emHdr }, redirect: 'follow' });
+      const d = await resp.json();
+      const items = d.result?.data || [];
+      const map = i => ({ code: i.SECURITY_CODE, name: i.SECURITY_NAME_ABBR, changePercent: i.CHANGE_RATE || 0, netAmt: (i.BILLBOARD_NET_AMT || 0) / 1e8 });
+      const limitUp = items.filter(i => (i.CHANGE_RATE || 0) >= 9.9).map(map);
+      const limitDown = items.filter(i => (i.CHANGE_RATE || 0) <= -9.9).map(map);
+      return { limitUp, limitDown, upCount: limitUp.length, downCount: limitDown.length, date: items[0]?.TRADE_DATE?.split(' ')[0] || '' };
+    });
+    res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
