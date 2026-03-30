@@ -73,8 +73,8 @@ a{color:var(--gold);text-decoration:none}
 .t-up-gl{color:#10b981}.t-dn-gl{color:#ef4444}
 .t-up-us{color:#10b981}.t-dn-us{color:#ef4444}
 .page-content{flex:1;overflow-y:auto;padding:16px 20px}
-.page-content:has(#page-research.active),.page-content:has(#page-astock.active),.page-content:has(#page-us.active){overflow:hidden;padding:0;display:flex;flex-direction:column}
-#page-astock.active,#page-us.active{flex:1;min-height:0;overflow:hidden;display:flex!important;flex-direction:column;animation:none}
+.page-content:has(#page-research.active),.page-content:has(#page-astock.active),.page-content:has(#page-us.active),.page-content:has(#page-crypto.active){overflow:hidden;padding:0;display:flex;flex-direction:column}
+#page-astock.active,#page-us.active,#page-crypto.active{flex:1;min-height:0;overflow:hidden;display:flex!important;flex-direction:column;animation:none}
 .as-fixed-top,.us-fixed-top{flex-shrink:0;padding:14px 20px 10px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--card-border)}
 .as-scroll-body,.us-scroll-body{flex:1;min-height:0;overflow-y:auto;padding:12px 20px 20px;display:flex;flex-direction:column;gap:12px}
 .as-scroll-body::-webkit-scrollbar,.us-scroll-body::-webkit-scrollbar{width:4px}
@@ -718,6 +718,58 @@ a{color:var(--gold);text-decoration:none}
 @media(max-width:900px){.astock-idx-grid{grid-template-columns:repeat(2,1fr)}.astock-bottom-grid{grid-template-columns:1fr}}
 @media(max-width:1100px){.screen-table .screen-hide{display:none}}
 
+/* ===== 加密货币 ===== */
+.cr-idx-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.cr-idx-card{background:var(--card);border:1px solid var(--card-border);border-radius:8px;padding:12px;transition:border-color .3s,transform .2s;cursor:pointer}
+.cr-idx-card:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+.cr-idx-card.active{border-color:rgba(240,185,11,0.5);background:rgba(240,185,11,0.05)}
+.cr-aic-sym{font-size:10px;color:var(--text3);font-family:monospace;font-weight:500}
+.cr-aic-name{font-size:11px;color:var(--text3);margin-bottom:2px}
+.cr-aic-price{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text);font-family:monospace}
+.cr-aic-chg{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+.cr-main-row{display:grid;grid-template-columns:1fr 210px;gap:12px;align-items:stretch;min-height:260px}
+.cr-gauge-col{display:flex;flex-direction:column;gap:6px}
+.cr-gauge-col .gauge-card{padding:10px;text-align:center;position:relative;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center}
+.cr-gauge-col .gauge-accent-line{position:absolute;top:0;left:10px;right:10px;height:3px;border-radius:0 0 3px 3px;background:linear-gradient(90deg,transparent,var(--gauge-accent,var(--gold)),transparent);opacity:.6}
+.cr-gauge-col .gauge-arc{display:block;width:100%;height:52px;margin:0 auto;flex-shrink:0}
+.cr-gauge-col .gauge-value{font-size:17px;font-weight:700;margin:2px 0;letter-spacing:.5px;font-variant-numeric:tabular-nums}
+.cr-gauge-col .gauge-label{font-size:12px;color:var(--text2)}
+.cr-gauge-col .gauge-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.cr-section-title{font-size:13px;font-weight:600;color:var(--text2);letter-spacing:.3px;margin-bottom:10px}
+.cr-section-title small{font-size:11px;color:var(--text3);font-weight:400}
+.cr-bottom-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;grid-auto-rows:420px}
+.cr-heatmap-grid{display:flex;flex-wrap:wrap;gap:3px}
+.cr-heatmap-block{border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:transform .2s,filter .15s;padding:6px 4px;min-height:48px;min-width:48px}
+.cr-heatmap-block:hover{transform:scale(1.08);filter:brightness(1.15);z-index:2;position:relative}
+.cr-heatmap-block-sym{font-size:11px;font-weight:700;color:#fff;white-space:nowrap;line-height:1.2}
+.cr-heatmap-block-chg{font-size:10px;color:rgba(255,255,255,0.82);white-space:nowrap;line-height:1.2}
+.cr-coin-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background .15s;border-radius:4px}
+.cr-coin-item:hover{background:rgba(255,255,255,0.04)}
+.cr-coin-item:last-child{border-bottom:none}
+.cr-coin-rank{font-size:10px;color:var(--text3);width:18px;text-align:right;flex-shrink:0;font-family:monospace}
+.cr-coin-logo{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,0.06)}
+.cr-coin-info{flex:1;min-width:0}
+.cr-coin-main{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr-coin-sub{font-size:10px;color:var(--text3);font-family:monospace}
+.cr-coin-right{text-align:right;flex-shrink:0}
+.cr-coin-price{font-size:12px;font-weight:600;font-family:monospace;font-variant-numeric:tabular-nums}
+.cr-coin-chg{font-size:11px;font-family:monospace;font-variant-numeric:tabular-nums}
+.cr-stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+.cr-stat-row:last-child{border-bottom:none}
+.cr-stat-label{font-size:12px;color:var(--text2)}
+.cr-stat-val{font-size:13px;font-weight:600;font-family:monospace;font-variant-numeric:tabular-nums;text-align:right}
+.cr-dom-bar{height:5px;background:rgba(255,255,255,0.08);border-radius:3px;margin-top:3px;overflow:hidden}
+.cr-dom-fill{height:100%;border-radius:3px;transition:width .8s ease-out}
+.cr-chart-tab{padding:4px 10px;border-radius:5px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--text3);transition:all .2s}
+.cr-chart-tab:hover{color:var(--text);background:rgba(255,255,255,0.06)}
+.cr-chart-tab.active{color:var(--gold);background:rgba(240,185,11,0.1);border-color:rgba(240,185,11,0.3)}
+.cr-range-bar{display:flex;gap:3px}
+.cr-range-bar button{padding:4px 9px;border-radius:5px;font-size:11px;cursor:pointer;border:none;background:transparent;color:var(--text3);transition:all .2s;font-family:inherit}
+.cr-range-bar button:hover{color:var(--text);background:rgba(255,255,255,0.06)}
+.cr-range-bar button.active{color:var(--gold);background:rgba(240,185,11,0.1)}
+@media(max-width:1300px){.cr-idx-grid{grid-template-columns:repeat(3,1fr)}.cr-main-row{display:contents}.cr-main-row>.chart-section{height:260px}.cr-gauge-col{display:flex;flex-direction:row;flex-wrap:wrap;height:auto}.cr-bottom-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.cr-idx-grid{grid-template-columns:repeat(2,1fr)}.cr-bottom-grid{grid-template-columns:1fr}}
+
 /* ===== 深度研究 ===== */
 #page-research{flex-direction:column;gap:0;padding:0}
 .research-input-bar{padding:14px 20px 12px;background:var(--card);border-bottom:1px solid var(--card-border);flex-shrink:0;display:flex;flex-direction:column;gap:10px}
@@ -855,6 +907,7 @@ a{color:var(--gold);text-decoration:none}
       <div class="nav-item" data-page="macro" role="tab" tabindex="0" aria-selected="false" aria-label="宏观数据"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg><span class="nav-label">宏观数据</span></div>
       <div class="nav-item" data-page="astock" role="tab" tabindex="0" aria-selected="false" aria-label="A股看板"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 7 11 12 14 17 6 21 9"/><polyline points="14 6 21 6 21 9"/></svg><span class="nav-label">A股</span></div>
       <div class="nav-item" data-page="us" role="tab" tabindex="0" aria-selected="false" aria-label="美股看板"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg><span class="nav-label">美股</span></div>
+      <div class="nav-item" data-page="crypto" role="tab" tabindex="0" aria-selected="false" aria-label="加密货币"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 8.5h4a2.5 2.5 0 010 5h-4V8.5z"/><path d="M9.5 13.5h4.5a2.5 2.5 0 010 5H9.5v-5z"/><line x1="9.5" y1="7" x2="9.5" y2="19.5"/><line x1="12" y1="7" x2="12" y2="8.5"/><line x1="12.5" y1="18.5" x2="12.5" y2="20"/></svg><span class="nav-label">加密货币</span></div>
       <div class="nav-item" data-page="research" role="tab" tabindex="0" aria-selected="false" aria-label="深度研究"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span class="nav-label">深度研究</span></div>
     </nav>
   </div>
@@ -1584,6 +1637,135 @@ a{color:var(--gold);text-decoration:none}
 
       </div>
 
+      <!-- ===== Page 8: 加密货币 ===== -->
+      <div class="page" id="page-crypto">
+        <div class="cr-fixed-top">
+          <!-- 顶部6格 -->
+          <div class="cr-idx-grid" id="cr-idx-grid">
+            <div class="cr-idx-card" id="cr-idx-bitcoin" data-symbol="BTC-USD" data-coinid="bitcoin">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><span class="cr-aic-name">比特币</span><span class="cr-aic-sym">BTC</span></div>
+              <div class="cr-aic-price">--</div><div class="cr-aic-chg">--</div>
+            </div>
+            <div class="cr-idx-card" id="cr-idx-ethereum" data-symbol="ETH-USD" data-coinid="ethereum">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><span class="cr-aic-name">以太坊</span><span class="cr-aic-sym">ETH</span></div>
+              <div class="cr-aic-price">--</div><div class="cr-aic-chg">--</div>
+            </div>
+            <div class="cr-idx-card" id="cr-idx-binancecoin" data-symbol="BNB-USD" data-coinid="binancecoin">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><span class="cr-aic-name">币安币</span><span class="cr-aic-sym">BNB</span></div>
+              <div class="cr-aic-price">--</div><div class="cr-aic-chg">--</div>
+            </div>
+            <div class="cr-idx-card" id="cr-idx-solana" data-symbol="SOL-USD" data-coinid="solana">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><span class="cr-aic-name">Solana</span><span class="cr-aic-sym">SOL</span></div>
+              <div class="cr-aic-price">--</div><div class="cr-aic-chg">--</div>
+            </div>
+            <div class="cr-idx-card" id="cr-idx-ripple" data-symbol="XRP-USD" data-coinid="ripple">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><span class="cr-aic-name">瑞波</span><span class="cr-aic-sym">XRP</span></div>
+              <div class="cr-aic-price">--</div><div class="cr-aic-chg">--</div>
+            </div>
+            <div class="cr-idx-card" id="cr-idx-totalMcap" style="cursor:default;border-color:rgba(240,185,11,0.2)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><span class="cr-aic-name">总市值</span><span class="cr-aic-sym">Global</span></div>
+              <div class="cr-aic-price">--</div><div class="cr-aic-chg">--</div>
+            </div>
+          </div>
+          <!-- 自选币 -->
+          <div class="chart-section" style="padding:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+              <div class="cr-section-title" style="margin:0">自选币 <small>实时行情 · 1分钟刷新</small></div>
+              <div class="wl-add-row">
+                <div class="wl-search-wrap">
+                  <input id="cr-wl-input" class="wl-input" placeholder="BTC / ETH / 币种名称" autocomplete="off" />
+                  <div id="cr-wl-dropdown" class="wl-dropdown"></div>
+                </div>
+                <button id="cr-wl-btn" class="wl-btn" style="border-color:rgba(240,185,11,0.3);background:rgba(240,185,11,0.08);color:var(--gold)">+ 添加</button>
+              </div>
+            </div>
+            <div id="cr-wl-grid" class="wl-grid"><div class="wl-empty">搜索币种名称或代码添加自选</div></div>
+          </div>
+        </div><!-- end cr-fixed-top -->
+        <div class="cr-scroll-body">
+          <!-- 走势图 + 仪表盘 -->
+          <div class="cr-main-row">
+            <div class="chart-section" style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+                <span class="cr-section-title" style="margin:0">价格走势</span>
+                <div style="display:flex;gap:4px;flex-wrap:wrap" id="cr-chart-tabs">
+                  <button class="cr-chart-tab active" data-symbol="BTC-USD" data-coinid="bitcoin">BTC</button>
+                  <button class="cr-chart-tab" data-symbol="ETH-USD" data-coinid="ethereum">ETH</button>
+                  <button class="cr-chart-tab" data-symbol="BNB-USD" data-coinid="binancecoin">BNB</button>
+                  <button class="cr-chart-tab" data-symbol="SOL-USD" data-coinid="solana">SOL</button>
+                  <button class="cr-chart-tab" data-symbol="XRP-USD" data-coinid="ripple">XRP</button>
+                </div>
+                <div class="cr-range-bar" id="cr-chart-range">
+                  <button class="active" data-range="1d" data-interval="5m">日</button>
+                  <button data-range="5d" data-interval="15m">周</button>
+                  <button data-range="1mo" data-interval="1h">月</button>
+                  <button data-range="3mo" data-interval="1d">季</button>
+                  <button data-range="1y" data-interval="1d">年</button>
+                </div>
+              </div>
+              <div id="cr-main-chart" style="flex:1;min-height:180px"></div>
+            </div>
+            <div class="cr-gauge-col">
+              <div class="gauge-card" style="--gauge-accent:#f59e0b" data-tip="加密货币恐惧贪婪指数&#10;数据来源：alternative.me&#10;0-25：极度恐惧&#10;25-45：恐惧&#10;45-55：中性&#10;55-75：贪婪&#10;75-100：极度贪婪">
+                <div class="cr-gauge-col gauge-accent-line"></div>
+                <div class="gauge-label">恐惧贪婪</div>
+                <svg class="gauge-arc" viewBox="0 0 120 70"><path d="M15 60 A45 45 0 0 1 105 60" fill="none" stroke="var(--card-border)" stroke-width="8" stroke-linecap="round"/><path id="cr-fng-arc-fill" d="M15 60 A45 45 0 0 1 105 60" fill="none" stroke="var(--gold)" stroke-width="8" stroke-linecap="round" stroke-dasharray="141.37" stroke-dashoffset="141.37" style="transition:stroke-dashoffset .8s ease-out"/></svg>
+                <div class="gauge-value" id="cr-fng-value">--</div>
+                <div class="gauge-sub" id="cr-fng-sub">加载中</div>
+              </div>
+              <div class="gauge-card" style="--gauge-accent:var(--gold)" data-tip="BTC市值占全球加密货币总市值比例&#10;占比高 → 市场偏保守，资金集中于BTC&#10;占比低 → 山寨季，资金向小币种扩散">
+                <div class="cr-gauge-col gauge-accent-line"></div>
+                <div class="gauge-label">BTC 占比</div>
+                <svg class="gauge-arc" viewBox="0 0 120 70"><path d="M15 60 A45 45 0 0 1 105 60" fill="none" stroke="var(--card-border)" stroke-width="8" stroke-linecap="round"/><path id="cr-btcdom-arc-fill" d="M15 60 A45 45 0 0 1 105 60" fill="none" stroke="var(--gold)" stroke-width="8" stroke-linecap="round" stroke-dasharray="141.37" stroke-dashoffset="141.37" style="transition:stroke-dashoffset .8s ease-out"/></svg>
+                <div class="gauge-value" id="cr-btcdom-value">--</div>
+                <div class="gauge-sub">市值占比</div>
+              </div>
+            </div>
+          </div>
+          <!-- 热力图 -->
+          <div class="chart-section">
+            <div class="cr-section-title">币种热力图 <small>Top 30 · 颜色 = 24h涨跌幅 · 大小 = 市值权重</small></div>
+            <div id="cr-heatmap-grid" class="cr-heatmap-grid"></div>
+          </div>
+          <!-- 底部三栏 -->
+          <div class="cr-bottom-grid">
+            <!-- 涨跌幅榜 -->
+            <div class="chart-section" style="padding:14px;display:flex;flex-direction:column">
+              <div class="cr-section-title">涨跌幅榜 <small>Top 100 · CoinGecko</small></div>
+              <div class="astock-sub-tabs" id="cr-mover-tabs">
+                <button class="astock-sub-tab active" data-type="gainers">涨幅 ↑</button>
+                <button class="astock-sub-tab" data-type="losers">跌幅 ↓</button>
+                <button class="astock-sub-tab" data-type="volume">成交量</button>
+              </div>
+              <div id="cr-movers-list" style="flex:1;overflow-y:auto;margin-top:4px"></div>
+            </div>
+            <!-- 主题板块 -->
+            <div class="chart-section" style="padding:14px;display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+                <div class="cr-section-title" style="margin:0">主题板块</div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap" id="cr-theme-tabs">
+                  <button class="us-tab" data-theme="layer1">Layer1</button>
+                  <button class="us-tab" data-theme="defi">DeFi</button>
+                  <button class="us-tab" data-theme="ai">AI</button>
+                  <button class="us-tab" data-theme="meme">Meme</button>
+                  <button class="us-tab" data-theme="layer2">Layer2</button>
+                </div>
+              </div>
+              <div id="cr-theme-list" style="flex:1;overflow-y:auto">
+                <div style="color:var(--text3);font-size:12px;padding:4px 0">↑ 点击上方标签查看板块</div>
+              </div>
+            </div>
+            <!-- 全球数据 -->
+            <div class="chart-section" style="padding:14px;display:flex;flex-direction:column">
+              <div class="cr-section-title">全球市场数据</div>
+              <div id="cr-stats-list" style="flex:1;overflow-y:auto">
+                <div style="color:var(--text3);font-size:12px">加载中...</div>
+              </div>
+            </div>
+          </div>
+        </div><!-- end cr-scroll-body -->
+      </div>
+
       <!-- ===== Page: 深度研究 ===== -->
       <div class="page" id="page-research">
         <!-- 顶部输入区 -->
@@ -1716,6 +1898,7 @@ const state = {
 function switchPage(p) {
   if (state.currentPage === 'astock' && p !== 'astock') stopAStockRefresh();
   if (state.currentPage === 'us' && p !== 'us') stopUSRefresh();
+  if (state.currentPage === 'crypto' && p !== 'crypto') stopCryptoRefresh();
   state.currentPage = p;
   document.querySelectorAll('.nav-item').forEach(n => { n.classList.remove('active'); n.setAttribute('aria-selected','false'); });
   const activeNav = document.querySelector(`.nav-item[data-page="${p}"]`);
@@ -1729,6 +1912,7 @@ function switchPage(p) {
     if (p === 'overview') loadMainChart();
     if (p === 'astock') { startAStockRefresh(); loadAStockChart(state.astockChartCode || '000001.SS', state.astockRange, state.astockInterval); }
     if (p === 'us') { startUSRefresh(); loadUSChart(usState.chartCode, usState.range, usState.interval); }
+    if (p === 'crypto') { startCryptoRefresh(); }
   }, delay);
 }
 document.querySelector('.sidebar-nav').addEventListener('click', e => { const item = e.target.closest('.nav-item'); if (item) switchPage(item.dataset.page); });
@@ -5542,6 +5726,368 @@ document.addEventListener('click', function(e) {
     rsdpLoadChart(btn.dataset.range, btn.dataset.interval);
   });
 })();
+
+// ===== 加密货币板块 =====
+var cryptoState = {
+  wlCoins: [],
+  marketData: [],
+  globalData: null,
+  fngData: null,
+  chartSymbol: 'BTC-USD',
+  chartCoinId: 'bitcoin',
+  chartRange: '1d',
+  chartInterval: '5m',
+  moverType: 'gainers',
+  themeType: null
+};
+var crRefreshTimer = null;
+cryptoState.wlCoins = JSON.parse(localStorage.getItem('cr_wl') || '[]');
+
+var CR_TOP5 = ['bitcoin','ethereum','binancecoin','solana','ripple'];
+var CR_THEMES = {
+  layer1: { label:'Layer1', ids:['bitcoin','ethereum','solana','binancecoin','cardano','avalanche-2','polkadot','near','cosmos','tron'] },
+  defi:   { label:'DeFi',   ids:['uniswap','aave','maker','curve-dao-token','lido-dao','compound-governance-token','1inch','balancer','synthetix-network-token','yearn-finance'] },
+  ai:     { label:'AI',     ids:['fetch-ai','render-token','singularitynet','bittensor','worldcoin-wld','ocean-protocol','numeraire','vectorspace-ai'] },
+  meme:   { label:'Meme',   ids:['dogecoin','shiba-inu','pepe','floki','bonk','dogwifcoin','memecoin'] },
+  layer2: { label:'Layer2', ids:['arbitrum','optimism','polygon','loopring','metis-token','immutable-x','starknet'] }
+};
+
+function crFmtPrice(p) {
+  if (p == null) return '--';
+  if (p >= 10000) return '$' + p.toLocaleString('en', {maximumFractionDigits:0});
+  if (p >= 1) return '$' + p.toFixed(2);
+  if (p >= 0.01) return '$' + p.toFixed(4);
+  return '$' + p.toFixed(6);
+}
+function crFmtMcap(v) {
+  if (!v) return '--';
+  if (v >= 1e12) return '$' + (v/1e12).toFixed(2) + 'T';
+  if (v >= 1e9) return '$' + (v/1e9).toFixed(1) + 'B';
+  if (v >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+  return '$' + v.toLocaleString();
+}
+function crChgColor(chg) { return chg >= 0 ? 'var(--green)' : 'var(--red)'; }
+function crChgStr(chg) { return (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%'; }
+
+async function fetchCryptoMarket() {
+  try {
+    var r = await fetch('/api/crypto/market');
+    if (!r.ok) throw new Error('market ' + r.status);
+    var data = await r.json();
+    if (Array.isArray(data) && data.length) {
+      cryptoState.marketData = data;
+      renderCryptoIndices();
+      renderCryptoHeatmap();
+      renderCryptoMovers();
+      renderCryptoWatchlist();
+      if (cryptoState.themeType) renderCryptoTheme(cryptoState.themeType);
+    }
+  } catch(e) { console.warn('[Crypto Market]', e.message); }
+}
+
+async function fetchCryptoGlobal() {
+  try {
+    var r = await fetch('/api/crypto/global');
+    if (!r.ok) throw new Error('global ' + r.status);
+    cryptoState.globalData = await r.json();
+    renderCryptoStats();
+    renderCryptoIndices();
+  } catch(e) { console.warn('[Crypto Global]', e.message); }
+}
+
+async function fetchCryptoFng() {
+  try {
+    var r = await fetch('/api/crypto/fng');
+    if (!r.ok) throw new Error('fng ' + r.status);
+    cryptoState.fngData = await r.json();
+    renderCryptoFng();
+  } catch(e) { console.warn('[Crypto FNG]', e.message); }
+}
+
+function renderCryptoIndices() {
+  var coins = cryptoState.marketData;
+  CR_TOP5.forEach(function(id) {
+    var coin = coins.find(function(c) { return c.id === id; });
+    if (!coin) return;
+    var el = document.getElementById('cr-idx-' + id);
+    if (!el) return;
+    var chg = coin.price_change_percentage_24h || 0;
+    el.querySelector('.cr-aic-price').textContent = crFmtPrice(coin.current_price);
+    var chgEl = el.querySelector('.cr-aic-chg');
+    chgEl.textContent = crChgStr(chg);
+    chgEl.style.color = crChgColor(chg);
+  });
+  var g = cryptoState.globalData;
+  if (g) {
+    var mcap = g.total_market_cap && g.total_market_cap.usd;
+    var mcapChg = g.market_cap_change_percentage_24h_usd || 0;
+    var el = document.getElementById('cr-idx-totalMcap');
+    if (el) {
+      el.querySelector('.cr-aic-price').textContent = crFmtMcap(mcap);
+      var chgEl = el.querySelector('.cr-aic-chg');
+      chgEl.textContent = crChgStr(mcapChg);
+      chgEl.style.color = crChgColor(mcapChg);
+    }
+  }
+}
+
+function renderCryptoHeatmap() {
+  var coins = cryptoState.marketData.slice(0, 30);
+  if (!coins.length) return;
+  var el = document.getElementById('cr-heatmap-grid');
+  if (!el) return;
+  var maxMcap = coins[0].market_cap || 1;
+  el.innerHTML = coins.map(function(c) {
+    var chg = c.price_change_percentage_24h || 0;
+    var abs = Math.min(Math.abs(chg), 8);
+    var alpha = 0.25 + abs / 8 * 0.65;
+    var bgColor = chg >= 0
+      ? 'rgba(0,200,83,' + alpha.toFixed(2) + ')'
+      : 'rgba(255,61,87,' + alpha.toFixed(2) + ')';
+    var relSize = Math.max(0.6, Math.sqrt(c.market_cap / maxMcap));
+    var flexVal = Math.max(1, Math.round(relSize * 6));
+    return '<div class="cr-heatmap-block" style="background:' + bgColor + ';flex:' + flexVal + '"' +
+      ' onclick="loadCryptoChart(\'' + c.symbol.toUpperCase() + '-USD\',\'' + c.id + '\')">' +
+      '<div class="cr-heatmap-block-sym">' + c.symbol.toUpperCase() + '</div>' +
+      '<div class="cr-heatmap-block-chg">' + crChgStr(chg) + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderCryptoMovers() {
+  var coins = cryptoState.marketData;
+  if (!coins.length) return;
+  var sorted;
+  if (cryptoState.moverType === 'gainers') {
+    sorted = coins.slice().sort(function(a,b){ return (b.price_change_percentage_24h||0)-(a.price_change_percentage_24h||0); }).slice(0,15);
+  } else if (cryptoState.moverType === 'losers') {
+    sorted = coins.slice().sort(function(a,b){ return (a.price_change_percentage_24h||0)-(b.price_change_percentage_24h||0); }).slice(0,15);
+  } else {
+    sorted = coins.slice().sort(function(a,b){ return (b.total_volume||0)-(a.total_volume||0); }).slice(0,15);
+  }
+  var el = document.getElementById('cr-movers-list');
+  if (!el) return;
+  el.innerHTML = sorted.map(function(c) {
+    var chg = c.price_change_percentage_24h || 0;
+    var vol = cryptoState.moverType === 'volume' ? '<div class="cr-coin-chg" style="color:var(--text3)">' + crFmtMcap(c.total_volume) + '</div>' : '<div class="cr-coin-chg" style="color:' + crChgColor(chg) + '">' + crChgStr(chg) + '</div>';
+    return '<div class="cr-coin-item" onclick="loadCryptoChart(\'' + c.symbol.toUpperCase() + '-USD\',\'' + c.id + '\')">' +
+      '<span class="cr-coin-rank">' + (c.market_cap_rank||'-') + '</span>' +
+      '<img class="cr-coin-logo" src="' + c.image + '" onerror="this.style.display=\'none\'" loading="lazy">' +
+      '<div class="cr-coin-info"><div class="cr-coin-main">' + c.name + '</div><div class="cr-coin-sub">' + c.symbol.toUpperCase() + '</div></div>' +
+      '<div class="cr-coin-right"><div class="cr-coin-price">' + crFmtPrice(c.current_price) + '</div>' + vol + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderCryptoTheme(themeKey) {
+  cryptoState.themeType = themeKey;
+  var theme = CR_THEMES[themeKey];
+  if (!theme) return;
+  var coins = cryptoState.marketData;
+  var themed = theme.ids.map(function(id){ return coins.find(function(c){ return c.id === id; }); }).filter(Boolean);
+  var el = document.getElementById('cr-theme-list');
+  if (!el) return;
+  if (!themed.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px 0">数据加载中，请稍候...</div>';
+    return;
+  }
+  el.innerHTML = themed.map(function(c) {
+    var chg = c.price_change_percentage_24h || 0;
+    return '<div class="cr-coin-item" onclick="loadCryptoChart(\'' + c.symbol.toUpperCase() + '-USD\',\'' + c.id + '\')">' +
+      '<span class="cr-coin-rank">' + (c.market_cap_rank||'-') + '</span>' +
+      '<img class="cr-coin-logo" src="' + c.image + '" onerror="this.style.display=\'none\'" loading="lazy">' +
+      '<div class="cr-coin-info"><div class="cr-coin-main">' + c.name + '</div><div class="cr-coin-sub">' + c.symbol.toUpperCase() + '</div></div>' +
+      '<div class="cr-coin-right"><div class="cr-coin-price">' + crFmtPrice(c.current_price) + '</div>' +
+      '<div class="cr-coin-chg" style="color:' + crChgColor(chg) + '">' + crChgStr(chg) + '</div></div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderCryptoStats() {
+  var g = cryptoState.globalData;
+  if (!g) return;
+  var btcDom = (g.market_cap_percentage && g.market_cap_percentage.btc) || 0;
+  var ethDom = (g.market_cap_percentage && g.market_cap_percentage.eth) || 0;
+  var totalMcap = (g.total_market_cap && g.total_market_cap.usd) || 0;
+  var totalVol = (g.total_volume && g.total_volume.usd) || 0;
+  var mcapChg = g.market_cap_change_percentage_24h_usd || 0;
+  var activeCrypto = g.active_cryptocurrencies || 0;
+  var el = document.getElementById('cr-stats-list');
+  if (el) {
+    el.innerHTML =
+      '<div class="cr-stat-row"><span class="cr-stat-label">总市值</span><span class="cr-stat-val">' + crFmtMcap(totalMcap) + '</span></div>' +
+      '<div class="cr-stat-row"><span class="cr-stat-label">24h涨跌</span><span class="cr-stat-val" style="color:' + crChgColor(mcapChg) + '">' + crChgStr(mcapChg) + '</span></div>' +
+      '<div class="cr-stat-row"><span class="cr-stat-label">24h成交量</span><span class="cr-stat-val">' + crFmtMcap(totalVol) + '</span></div>' +
+      '<div class="cr-stat-row"><span class="cr-stat-label">活跃币种</span><span class="cr-stat-val">' + activeCrypto.toLocaleString() + '</span></div>' +
+      '<div class="cr-stat-row"><span class="cr-stat-label">BTC 占比</span><div><div class="cr-stat-val">' + btcDom.toFixed(1) + '%</div>' +
+        '<div class="cr-dom-bar"><div class="cr-dom-fill" style="width:' + btcDom + '%;background:linear-gradient(90deg,var(--gold),#f59e0b)"></div></div></div></div>' +
+      '<div class="cr-stat-row"><span class="cr-stat-label">ETH 占比</span><div><div class="cr-stat-val">' + ethDom.toFixed(1) + '%</div>' +
+        '<div class="cr-dom-bar"><div class="cr-dom-fill" style="width:' + ethDom + '%;background:linear-gradient(90deg,#627eea,#8fa3f5)"></div></div></div></div>';
+  }
+  // BTC dom arc
+  var arcFill = document.getElementById('cr-btcdom-arc-fill');
+  var btcDomVal = document.getElementById('cr-btcdom-value');
+  if (arcFill) { arcFill.style.strokeDashoffset = (141.37 - (btcDom/100)*141.37).toFixed(2); }
+  if (btcDomVal) btcDomVal.textContent = btcDom.toFixed(1) + '%';
+}
+
+function renderCryptoFng() {
+  var fng = cryptoState.fngData;
+  if (!fng) return;
+  var val = parseInt(fng.value);
+  var label = fng.value_classification || '';
+  var labelMap = { 'Extreme Fear':'极度恐惧','Fear':'恐惧','Neutral':'中性','Greed':'贪婪','Extreme Greed':'极度贪婪' };
+  var color = val <= 25 ? '#ef4444' : val <= 45 ? '#f97316' : val <= 55 ? '#eab308' : val <= 75 ? '#84cc16' : '#00c853';
+  var valEl = document.getElementById('cr-fng-value');
+  var subEl = document.getElementById('cr-fng-sub');
+  var arcFill = document.getElementById('cr-fng-arc-fill');
+  if (valEl) { valEl.textContent = val; valEl.style.color = color; }
+  if (subEl) subEl.textContent = labelMap[label] || label;
+  if (arcFill) { arcFill.style.strokeDashoffset = (141.37 - (val/100)*141.37).toFixed(2); arcFill.style.stroke = color; }
+}
+
+function renderCryptoWatchlist() {
+  var wl = cryptoState.wlCoins;
+  var coins = cryptoState.marketData;
+  var el = document.getElementById('cr-wl-grid');
+  if (!el) return;
+  if (!wl.length) { el.innerHTML = '<div class="wl-empty">搜索币种名称或代码添加自选</div>'; return; }
+  el.innerHTML = wl.map(function(item) {
+    var live = coins.find(function(c){ return c.id === item.id; });
+    var price = live ? crFmtPrice(live.current_price) : '--';
+    var chg = live ? (live.price_change_percentage_24h || 0) : null;
+    var chgStr = chg != null ? crChgStr(chg) : '--';
+    var chgColor = chg != null ? crChgColor(chg) : 'var(--text3)';
+    return '<div class="wl-card" onclick="loadCryptoChart(\'' + item.symbol.toUpperCase() + '-USD\',\'' + item.id + '\')">' +
+      '<button class="wl-del" onclick="event.stopPropagation();removeCryptoWl(\'' + item.id + '\')" title="移除">×</button>' +
+      '<div class="wl-name">' + item.symbol.toUpperCase() + '</div>' +
+      '<div class="wl-code">' + item.name + '</div>' +
+      '<div class="wl-price" style="font-size:16px">' + price + '</div>' +
+      '<div class="wl-pct" style="color:' + chgColor + '">' + chgStr + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function addCryptoWl(id, symbol, name) {
+  if (cryptoState.wlCoins.find(function(c){ return c.id === id; })) return;
+  cryptoState.wlCoins.push({ id: id, symbol: symbol, name: name });
+  localStorage.setItem('cr_wl', JSON.stringify(cryptoState.wlCoins));
+  renderCryptoWatchlist();
+  document.getElementById('cr-wl-input').value = '';
+  document.getElementById('cr-wl-dropdown').innerHTML = '';
+  document.getElementById('cr-wl-dropdown').classList.remove('show');
+}
+
+function removeCryptoWl(id) {
+  cryptoState.wlCoins = cryptoState.wlCoins.filter(function(c){ return c.id !== id; });
+  localStorage.setItem('cr_wl', JSON.stringify(cryptoState.wlCoins));
+  renderCryptoWatchlist();
+}
+
+async function loadCryptoChart(yahooSymbol, coinId) {
+  cryptoState.chartSymbol = yahooSymbol;
+  cryptoState.chartCoinId = coinId;
+  document.querySelectorAll('.cr-idx-card').forEach(function(c){ c.classList.remove('active'); });
+  var card = document.getElementById('cr-idx-' + coinId);
+  if (card) card.classList.add('active');
+  document.querySelectorAll('#cr-chart-tabs .cr-chart-tab').forEach(function(b){
+    b.classList.toggle('active', b.dataset.coinid === coinId);
+  });
+  try {
+    var data = await fetchChartData(yahooSymbol, cryptoState.chartRange, cryptoState.chartInterval);
+    if (!data || !data.prices.length) return;
+    var chart = initChart('cr-main-chart');
+    if (!chart) return;
+    var isUp = data.prices[data.prices.length-1] >= data.prices[0];
+    var color = isUp ? '#00c853' : '#ff3d57';
+    chart.setOption({
+      tooltip:{ trigger:'axis', backgroundColor:'rgba(19,26,42,0.95)', borderColor:'#1e2a3a', textStyle:{color:'#e8eaed',fontSize:11} },
+      grid:{ top:8, right:50, bottom:20, left:65 },
+      xAxis:{ data:data.timestamps, axisLine:{lineStyle:{color:'#1e2a3a'}}, axisLabel:{color:'#556677',fontSize:9}, splitLine:{show:false} },
+      yAxis:{ scale:true, axisLine:{show:false}, axisLabel:{color:'#556677',fontSize:9,formatter:function(v){ return crFmtPrice(v); }}, splitLine:{lineStyle:{color:'#1e2a3a',type:'dashed'}} },
+      series:[{ type:'line', data:data.prices, smooth:true, symbol:'none', lineStyle:{width:2,color:color}, areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color+'30'},{offset:1,color:color+'00'}])} }]
+    }, true);
+  } catch(e) { console.warn('[Crypto Chart]', e.message); }
+}
+
+function startCryptoRefresh() {
+  if (crRefreshTimer) return;
+  fetchCryptoGlobal();
+  fetchCryptoFng();
+  fetchCryptoMarket().then(function(){ loadCryptoChart(cryptoState.chartSymbol, cryptoState.chartCoinId); });
+  crRefreshTimer = setInterval(function(){ fetchCryptoMarket(); }, 60000);
+}
+function stopCryptoRefresh() {
+  if (crRefreshTimer) { clearInterval(crRefreshTimer); crRefreshTimer = null; }
+}
+
+// Crypto event listeners
+document.getElementById('cr-idx-grid').addEventListener('click', function(e) {
+  var card = e.target.closest('.cr-idx-card[data-symbol]');
+  if (!card) return;
+  loadCryptoChart(card.dataset.symbol, card.dataset.coinid);
+});
+document.getElementById('cr-chart-tabs').addEventListener('click', function(e) {
+  var btn = e.target.closest('.cr-chart-tab');
+  if (!btn) return;
+  document.querySelectorAll('#cr-chart-tabs .cr-chart-tab').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  loadCryptoChart(btn.dataset.symbol, btn.dataset.coinid);
+});
+document.getElementById('cr-chart-range').addEventListener('click', function(e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('#cr-chart-range button').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  cryptoState.chartRange = btn.dataset.range;
+  cryptoState.chartInterval = btn.dataset.interval;
+  loadCryptoChart(cryptoState.chartSymbol, cryptoState.chartCoinId);
+});
+document.getElementById('cr-mover-tabs').addEventListener('click', function(e) {
+  var btn = e.target.closest('.astock-sub-tab');
+  if (!btn) return;
+  document.querySelectorAll('#cr-mover-tabs .astock-sub-tab').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  cryptoState.moverType = btn.dataset.type;
+  renderCryptoMovers();
+});
+document.getElementById('cr-theme-tabs').addEventListener('click', function(e) {
+  var btn = e.target.closest('.us-tab');
+  if (!btn) return;
+  document.querySelectorAll('#cr-theme-tabs .us-tab').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderCryptoTheme(btn.dataset.theme);
+});
+document.getElementById('cr-wl-input').addEventListener('input', function() {
+  var q = this.value.trim().toLowerCase();
+  var dd = document.getElementById('cr-wl-dropdown');
+  if (!q) { dd.innerHTML = ''; dd.classList.remove('show'); return; }
+  var coins = cryptoState.marketData;
+  var matches = coins.filter(function(c){ return c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q); }).slice(0,8);
+  if (!matches.length) { dd.innerHTML = '<div class="wl-opt" style="color:var(--text3)">无匹配结果</div>'; dd.classList.add('show'); return; }
+  dd.innerHTML = matches.map(function(c){
+    return '<div class="wl-opt" onclick="addCryptoWl(\'' + c.id + '\',\'' + c.symbol + '\',\'' + c.name.replace(/'/g,"\\'") + '\')">' +
+      '<span style="font-weight:600;font-family:monospace">' + c.symbol.toUpperCase() + '</span>' +
+      '<span style="color:var(--text2);font-size:11px;margin-left:6px">' + c.name + '</span>' +
+      '<span style="color:var(--text3);font-size:10px;margin-left:auto">' + crFmtPrice(c.current_price) + '</span>' +
+      '</div>';
+  }).join('');
+  dd.classList.add('show');
+});
+document.getElementById('cr-wl-btn').addEventListener('click', function() {
+  var q = document.getElementById('cr-wl-input').value.trim().toLowerCase();
+  if (!q) return;
+  var coin = cryptoState.marketData.find(function(c){ return c.symbol.toLowerCase() === q || c.id === q; });
+  if (coin) addCryptoWl(coin.id, coin.symbol, coin.name);
+});
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.wl-search-wrap') || e.target.closest('#cr-wl-input') === null) {
+    var dd = document.getElementById('cr-wl-dropdown');
+    if (dd && !e.target.closest('#cr-wl-input') && !e.target.closest('#cr-wl-dropdown')) { dd.classList.remove('show'); }
+  }
+});
+</script>
+
 </script>
 </body>
 </html>

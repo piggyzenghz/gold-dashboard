@@ -2346,6 +2346,53 @@ app.delete('/api/research/:id', (req, res) => {
   }
 });
 
+// ============ 加密货币 ============
+
+app.get('/api/crypto/market', async (req, res) => {
+  try {
+    const ttl = getTTL(60, 300);
+    const data = await withCache('crypto:market', ttl, async () => {
+      const url = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h,7d';
+      const r = await fetch(url, { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(12000) });
+      if (!r.ok) throw new Error('CoinGecko ' + r.status);
+      return await r.json();
+    });
+    res.json(data || []);
+  } catch(e) {
+    console.error('[Crypto Market]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/crypto/global', async (req, res) => {
+  try {
+    const ttl = getTTL(120, 600);
+    const data = await withCache('crypto:global', ttl, async () => {
+      const r = await fetch('https://api.coingecko.com/api/v3/global', { headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(12000) });
+      if (!r.ok) throw new Error('CoinGecko global ' + r.status);
+      return (await r.json()).data;
+    });
+    res.json(data || {});
+  } catch(e) {
+    console.error('[Crypto Global]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/crypto/fng', async (req, res) => {
+  try {
+    const data = await withCache('crypto:fng', 3600, async () => {
+      const r = await fetch('https://api.alternative.me/fng/?limit=1', { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error('FNG ' + r.status);
+      const j = await r.json();
+      return j.data?.[0] || null;
+    });
+    res.json(data || { value: '50', value_classification: 'Neutral' });
+  } catch(e) {
+    res.json({ value: '50', value_classification: 'Neutral' });
+  }
+});
+
 // ============ 数据预热 Cron ============
 // 每交易日 08:55 CST 提前预热核心数据 (UTC 00:55)
 cron.schedule('55 0 * * 1-5', async () => {
