@@ -4118,15 +4118,60 @@ function sdpUpdateFundamentals(f) {
   }
 }
 
+// A股代码 → Eastmoney secid
+function _codeToSecid(code) {
+  var c = String(code).padStart(6, '0');
+  return (c.startsWith('6') || c.startsWith('5') || c.startsWith('688') || c.startsWith('9')) ? '1.' + c : '0.' + c;
+}
+
 async function sdpLoadChart(range, interval) {
   document.querySelectorAll('.sdp-range-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.range === range); });
   sdpState.range = range;
   sdpState.interval = interval;
+  var container = document.getElementById('sdp-chart');
+  if (!sdpState.chart) sdpState.chart = echarts.init(container);
+
+  // A股日内分时：使用东方财富 trends 接口 + 全天时间轴
+  if (range === '1d' && sdpState.market === 'cn') {
+    try {
+      var secid = _codeToSecid(sdpState.code);
+      var resp = await fetch('/api/astock/trends?secid=' + secid);
+      var tData = await resp.json();
+      if (!tData || !tData.prices || !tData.prices.length) return;
+      var fullTimeline = _genAStockTimeline();
+      var dataMap = {};
+      for (var i = 0; i < tData.timestamps.length; i++) {
+        var hm = tData.timestamps[i].split(' ')[1];
+        if (hm) dataMap[hm] = tData.prices[i];
+      }
+      var prices = fullTimeline.map(function(t) { return dataMap[t] !== undefined ? dataMap[t] : null; });
+      var preClose = tData.preClose || tData.prices[0];
+      var lastPrice = tData.prices[tData.prices.length - 1];
+      var isUp = lastPrice >= preClose;
+      var color = isUp ? '#ff3d57' : '#00c853';
+      var _showLabels = {'09:30':1,'10:00':1,'10:30':1,'11:00':1,'13:00':1,'13:30':1,'14:00':1,'14:30':1,'15:00':1};
+      sdpState.chart.setOption({
+        tooltip:{trigger:'axis',backgroundColor:'rgba(19,26,42,0.95)',borderColor:'#1e2a3a',textStyle:{color:'#e8eaed',fontSize:11},
+          formatter:function(p){ var v=p[0]; if(v.value==null) return ''; var chg=((v.value-preClose)/preClose*100).toFixed(2); return v.axisValue+'<br/>'+v.value.toFixed(2)+' <span style="color:'+(chg>=0?'#ff3d57':'#00c853')+'">'+( chg>=0?'+':'')+chg+'%</span>'; }},
+        grid:{top:15,right:50,bottom:22,left:55},
+        xAxis:{data:fullTimeline,axisLine:{lineStyle:{color:'#1e2a3a'}},axisLabel:{color:'#556677',fontSize:9,
+          interval:function(i){ return !!_showLabels[fullTimeline[i]]; }},splitLine:{show:false}},
+        yAxis:{scale:true,axisLine:{show:false},axisLabel:{color:'#556677',fontSize:9,formatter:function(v){return v.toFixed(2);}},
+          splitLine:{lineStyle:{color:'#1e2a3a',type:'dashed'}}},
+        series:[{type:'line',data:prices,smooth:true,symbol:'none',connectNulls:false,
+          lineStyle:{width:2,color:color},
+          markLine:{silent:true,symbol:'none',lineStyle:{color:'#556677',type:'dashed',width:1},
+            data:[{yAxis:preClose,label:{show:true,position:'insideEndTop',formatter:function(){return preClose.toFixed(2);},color:'#556677',fontSize:9}}]},
+          areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color+'40'},{offset:1,color:color+'05'}])}}]
+      }, true);
+      return;
+    } catch(e) {}
+  }
+
+  // 非日内或美股：走 Yahoo Finance
   try {
     var data = await fetchChartData(sdpState.yahoo, range, interval);
     if (!data || !data.prices.length) return;
-    var container = document.getElementById('sdp-chart');
-    if (!sdpState.chart) sdpState.chart = echarts.init(container);
     var isUp = data.prices[data.prices.length - 1] >= data.prices[0];
     var color = isUp ? '#ff3d57' : '#00c853';
     sdpState.chart.setOption({
