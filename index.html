@@ -1131,6 +1131,37 @@ a{color:var(--gold);text-decoration:none}
             <div class="tool-row"><button class="tool-btn" onclick="addAlert()">添加预警</button></div>
             <div class="alert-list" id="alertList"></div>
           </div>
+          <!-- 板块强度计算器 -->
+          <div class="tool-card" style="grid-column:1/-1">
+            <h3>板块强度计算器</h3>
+            <div class="tool-row" style="position:relative">
+              <label>选择板块</label>
+              <input class="tool-input" id="str-search" type="text" placeholder="输入板块名称..." autocomplete="off" oninput="strSearchInput(this.value)">
+              <div id="str-dropdown" style="position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--card-border);border-radius:8px;max-height:200px;overflow-y:auto;z-index:10;display:none"></div>
+            </div>
+            <div id="str-result" style="display:none">
+              <div style="display:flex;align-items:center;gap:16px;margin:16px 0 12px;flex-wrap:wrap">
+                <div style="text-align:center;min-width:100px">
+                  <div id="str-r-icon" style="font-size:32px;line-height:1"></div>
+                  <div id="str-r-score" style="font-size:28px;font-weight:800;font-family:var(--font-mono);margin:4px 0"></div>
+                  <div id="str-r-label" style="font-size:13px;font-weight:600"></div>
+                </div>
+                <div style="flex:1;min-width:200px">
+                  <div style="margin-bottom:8px;font-size:12px;color:var(--text2);font-weight:600">三维度得分</div>
+                  <div id="str-r-dims" style="display:flex;flex-direction:column;gap:6px"></div>
+                </div>
+              </div>
+              <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">计算明细</div>
+              <table id="str-r-table" style="width:100%;font-size:12px;border-collapse:collapse">
+                <thead><tr style="color:var(--text3);border-bottom:1px solid var(--card-border)">
+                  <th style="text-align:left;padding:4px 6px">档位</th><th>正向</th><th>负向</th><th>得分</th><th>范围</th>
+                </tr></thead>
+                <tbody id="str-r-tbody"></tbody>
+              </table>
+              <div style="font-size:12px;color:var(--text2);font-weight:600;margin:12px 0 6px">成分股分档（<span id="str-r-total">0</span> 只）</div>
+              <div id="str-r-stocks" style="max-height:200px;overflow-y:auto"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1350,7 +1381,9 @@ a{color:var(--gold);text-decoration:none}
 
         <!-- 行业板块涨跌 -->
         <div class="chart-section">
-          <div class="astock-section-title">申万行业板块涨跌 <small>红涨 绿跌 · 按涨幅排列</small></div>
+          <div class="astock-section-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">申万行业板块涨跌 <small>红涨 绿跌 · 按涨幅排列</small>
+            <div style="margin-left:auto;display:flex;gap:4px"><button class="chart-tab active" id="sec-sort-chg" onclick="sortSectors('chg')">涨幅</button><button class="chart-tab" id="sec-sort-str" onclick="sortSectors('str')">强度</button></div>
+          </div>
           <div id="astock-sector-blocks" class="sector-block-grid"></div>
         </div>
 
@@ -2722,6 +2755,75 @@ function checkAlerts() {
 }
 
 
+// ===== 板块强度计算器 =====
+var _strTimer = null;
+async function strSearchInput(val) {
+  clearTimeout(_strTimer);
+  val = val.trim();
+  if (!val) { document.getElementById('str-dropdown').style.display = 'none'; return; }
+  _strTimer = setTimeout(async function() {
+    try {
+      const resp = await fetch('/api/astock/sector-search?q=' + encodeURIComponent(val));
+      const matches = await resp.json();
+      const dd = document.getElementById('str-dropdown');
+      if (!matches.length) { dd.style.display = ''; dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text3)">未找到匹配板块</div>'; return; }
+      dd.style.display = '';
+      dd.innerHTML = matches.map(s =>
+        `<div style="padding:8px 12px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.05)" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background=''" onclick="strSelect('${s.code}','${escH(s.name)}')"><span>${escH(s.name)} <span style="color:var(--text3);font-size:11px">${s.code}</span></span></div>`
+      ).join('');
+    } catch(e) { document.getElementById('str-dropdown').style.display = 'none'; }
+  }, 200);
+}
+async function strSelect(code, name) {
+  document.getElementById('str-search').value = name;
+  document.getElementById('str-dropdown').style.display = 'none';
+  document.getElementById('str-result').style.display = 'none';
+  try {
+    const resp = await fetch('/api/astock/sector-strength/' + code);
+    const d = await resp.json();
+    document.getElementById('str-result').style.display = '';
+    var col = d.strength >= 4 ? '#ef4444' : d.strength >= 1 ? '#ff9800' : d.strength >= -1 ? '#888' : '#3b82f6';
+    document.getElementById('str-r-icon').textContent = d.icon;
+    var sc = document.getElementById('str-r-score');
+    sc.textContent = (d.strength > 0 ? '+' : '') + d.strength;
+    sc.style.color = col;
+    document.getElementById('str-r-label').textContent = d.label;
+    document.getElementById('str-r-label').style.color = col;
+    var b = d.breakdown;
+    function dimBar(name, val, min, max) {
+      var pct = Math.round((val - min) / (max - min) * 100);
+      var c = val > 0 ? '#ef4444' : val < 0 ? '#3b82f6' : '#888';
+      return '<div style="display:flex;align-items:center;gap:8px"><span style="width:70px;color:var(--text3)">' + name + '</span><div style="flex:1;height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+c+';border-radius:3px"></div></div><span style="width:35px;text-align:right;font-weight:600;font-family:var(--font-mono);color:'+c+'">'+(val>0?'+':'')+val+'</span></div>';
+    }
+    document.getElementById('str-r-dims').innerHTML = dimBar('涨停强度', b.dim1, -10, 10) + dimBar('强势股', b.dim2, -5, 2.5) + dimBar('次强势', b.dim3, -5, 2.5);
+    document.getElementById('str-r-tbody').innerHTML =
+      '<tr><td style="padding:4px 6px">涨停/跌停</td><td style="text-align:center;color:#ef4444">'+b.limitUp+'</td><td style="text-align:center;color:#3b82f6">'+b.limitDown+'</td><td style="text-align:center;font-weight:600">'+(b.dim1>0?'+':'')+b.dim1+'</td><td style="text-align:center;color:var(--text3)">-10~+10</td></tr>' +
+      '<tr><td style="padding:4px 6px">强势/弱势</td><td style="text-align:center;color:#ff9800">'+b.strong+'</td><td style="text-align:center;color:#60a5fa">'+b.weak+'</td><td style="text-align:center;font-weight:600">'+(b.dim2>0?'+':'')+b.dim2+'</td><td style="text-align:center;color:var(--text3)">-5~+2.5</td></tr>' +
+      '<tr><td style="padding:4px 6px">次强/次弱</td><td style="text-align:center;color:#eab308">'+b.subStrong+'</td><td style="text-align:center;color:#93c5fd">'+b.subWeak+'</td><td style="text-align:center;font-weight:600">'+(b.dim3>0?'+':'')+b.dim3+'</td><td style="text-align:center;color:var(--text3)">-5~+2.5</td></tr>';
+    document.getElementById('str-r-total').textContent = d.totalStocks;
+    var stocks = d.stocks || [];
+    var tiers = [
+      { label: '🔴 涨停', filter: s => s.changePercent >= 9.9, cls: '#ef4444' },
+      { label: '🟠 强势', filter: s => s.changePercent > 8 && s.changePercent < 9.9, cls: '#ff9800' },
+      { label: '🟡 次强', filter: s => s.changePercent > 5 && s.changePercent <= 8, cls: '#eab308' },
+      { label: '🔵 次弱', filter: s => s.changePercent < -5 && s.changePercent >= -8, cls: '#93c5fd' },
+      { label: '🟣 弱势', filter: s => s.changePercent < -8 && s.changePercent > -9.9, cls: '#60a5fa' },
+      { label: '⚫ 跌停', filter: s => s.changePercent <= -9.9, cls: '#3b82f6' },
+    ];
+    var html = '';
+    for (var t of tiers) {
+      var list = stocks.filter(t.filter);
+      if (!list.length) continue;
+      html += '<div style="margin-bottom:6px"><span style="font-size:11px;font-weight:600;color:'+t.cls+'">'+t.label+' ('+list.length+')</span>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">';
+      list.forEach(function(s) { html += '<span style="font-size:11px;padding:2px 6px;background:rgba(255,255,255,0.04);border-radius:4px;color:'+t.cls+'">'+escH(s.name)+' '+(s.changePercent>=0?'+':'')+s.changePercent.toFixed(1)+'%</span>'; });
+      html += '</div></div>';
+    }
+    document.getElementById('str-r-stocks').innerHTML = html || '<div style="font-size:12px;color:var(--text3)">无极端涨跌个股</div>';
+  } catch(e) { document.getElementById('str-result').innerHTML = '<div style="color:#ef4444;padding:12px">加载失败: '+escH(e.message)+'</div>'; }
+}
+document.addEventListener('click', function(e) { if (!e.target.closest('#str-search') && !e.target.closest('#str-dropdown')) document.getElementById('str-dropdown').style.display = 'none'; });
+
 // ===== Events =====
 document.getElementById('chartTabs').addEventListener('click',e=>{const t=e.target.closest('.chart-tab');if(!t)return;document.querySelectorAll('.chart-tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');state.currentSymbol=t.dataset.sym;loadMainChart()});
 document.getElementById('chartRange').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('.chart-range button').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.currentRange=b.dataset.range;state.currentInterval=b.dataset.interval;loadMainChart()});
@@ -2873,23 +2975,55 @@ async function loadSectorFlowChart(days) {
   } catch(e) {}
 }
 
+state.sectorSortMode = 'chg';
+state.sectorStrData = null;
+state._sectorRawData = null;
+
 async function fetchAStockSectors() {
   try {
     const resp = await fetch('/api/astock/sectors');
     const data = await resp.json();
     if (!data.length) return;
-    const sorted = [...data].sort((a,b) => b.changePercent - a.changePercent);
-    const el = document.getElementById('astock-sector-blocks'); if (!el) return;
-    el.innerHTML = sorted.map(s => {
-      const pct = s.changePercent || 0;
-      const valStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-      const bg = getSectorBlockColor(pct);
-      return `<div class="sector-block" style="background:${bg}" title="${s.name} ${valStr}" onclick="showSecPanel('${s.code}','${s.name}')">
-        <div class="sector-block-name">${s.name}</div>
-        <div class="sector-block-val">${valStr}</div>
-      </div>`;
-    }).join('');
+    state._sectorRawData = data;
+    renderSectorBlocks();
   } catch(e) {}
+}
+
+function renderSectorBlocks() {
+  var data = state._sectorRawData;
+  if (!data) return;
+  var sorted;
+  if (state.sectorSortMode === 'str' && state.sectorStrData) {
+    sorted = state.sectorStrData.map(s => ({ code: s.code, name: s.name, changePercent: s.changePercent, strength: s.strength, label: s.label, icon: s.icon }));
+  } else {
+    sorted = [...data].sort((a,b) => b.changePercent - a.changePercent);
+  }
+  const el = document.getElementById('astock-sector-blocks'); if (!el) return;
+  el.innerHTML = sorted.map(s => {
+    const pct = s.changePercent || 0;
+    const valStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+    const bg = getSectorBlockColor(pct);
+    const strInfo = s.strength != null ? ` | 强度${s.icon}${s.strength}` : '';
+    return `<div class="sector-block" style="background:${bg}" title="${s.name} ${valStr}${strInfo}" onclick="showSecPanel('${s.code}','${s.name}')">
+      <div class="sector-block-name">${s.name}</div>
+      <div class="sector-block-val">${valStr}</div>
+    </div>`;
+  }).join('');
+}
+
+async function sortSectors(mode) {
+  state.sectorSortMode = mode;
+  document.getElementById('sec-sort-chg').classList.toggle('active', mode === 'chg');
+  document.getElementById('sec-sort-str').classList.toggle('active', mode === 'str');
+  if (mode === 'str' && !state.sectorStrData) {
+    const el = document.getElementById('astock-sector-blocks');
+    if (el) el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px;font-size:13px">计算板块强度中...</div>';
+    try {
+      const resp = await fetch('/api/astock/sector-strength');
+      state.sectorStrData = await resp.json();
+    } catch(e) { state.sectorStrData = null; }
+  }
+  renderSectorBlocks();
 }
 
 async function fetchAStockMarketStats() {
@@ -3604,6 +3738,17 @@ window.addEventListener('resize',()=>{
       <div class="sec-price" id="sec-price">--</div>
       <div class="sec-change" id="sec-change"></div>
     </div>
+    <!-- 板块强度 -->
+    <div id="sec-strength-card" style="margin:0 16px 8px;padding:10px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:10px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--text2);font-weight:600">板块强度</span>
+        <span id="sec-str-badge" style="font-size:13px;font-weight:700;letter-spacing:.5px"></span>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;margin-bottom:6px">
+        <div id="sec-str-bar" style="height:100%;border-radius:3px;transition:width .6s ease-out"></div>
+      </div>
+      <div id="sec-str-detail" style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--text3)"></div>
+    </div>
     <div class="sec-heatmap-wrap">
       <div class="sec-heatmap-title">多周期收益 vs 沪深300</div>
       <div id="sec-heatmap"><div style="color:var(--text3);font-size:12px">加载中...</div></div>
@@ -3876,6 +4021,28 @@ async function showSecPanel(code, name) {
   document.getElementById('sec-overlay').classList.add('open');
   document.getElementById('sec-panel').classList.add('open');
   document.body.style.overflow = 'hidden';
+
+  // 强度卡片：异步加载
+  var strCard = document.getElementById('sec-strength-card');
+  strCard.style.display = 'none';
+  fetch('/api/astock/sector-strength/' + encodeURIComponent(code)).then(r=>r.json()).then(sd=>{
+    strCard.style.display = '';
+    var col = sd.strength >= 4 ? '#ef4444' : sd.strength >= 1 ? '#ff9800' : sd.strength >= -1 ? '#888' : '#3b82f6';
+    document.getElementById('sec-str-badge').innerHTML = sd.icon + ' <span style="color:'+col+'">' + (sd.strength>0?'+':'') + sd.strength + '</span> ' + sd.label;
+    var pct = Math.round((sd.strength + 10) / 20 * 100);
+    var bar = document.getElementById('sec-str-bar');
+    bar.style.width = pct + '%';
+    bar.style.background = col;
+    var b = sd.breakdown;
+    document.getElementById('sec-str-detail').innerHTML =
+      '<span>涨停 <b style="color:#ef4444">'+b.limitUp+'</b></span>' +
+      '<span>强势 <b style="color:#ff9800">'+b.strong+'</b></span>' +
+      '<span>次强 <b style="color:#eab308">'+b.subStrong+'</b></span>' +
+      '<span style="opacity:.6">|</span>' +
+      '<span>跌停 <b style="color:#3b82f6">'+b.limitDown+'</b></span>' +
+      '<span>弱势 <b style="color:#60a5fa">'+b.weak+'</b></span>' +
+      '<span>次弱 <b style="color:#93c5fd">'+b.subWeak+'</b></span>';
+  }).catch(()=>{ strCard.style.display='none'; });
 
   try {
     const resp = await fetch('/api/astock/sector-detail/' + encodeURIComponent(code));

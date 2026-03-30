@@ -956,6 +956,68 @@ app.get('/api/astock/sectors', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ============ 板块强度计算 ============
+function calcStrength(stocks) {
+  let lu = 0, ld = 0, str = 0, wk = 0, sub = 0, swk = 0;
+  for (const s of stocks) {
+    const p = s.changePercent || 0;
+    if (p >= 9.9) lu++;
+    else if (p <= -9.9) ld++;
+    else if (p > 8) str++;
+    else if (p < -8) wk++;
+    else if (p > 5) sub++;
+    else if (p < -5) swk++;
+  }
+  let d1 = Math.max(-10, Math.min(10, lu * 0.5 + ld * (-2)));
+  let d2 = Math.max(-5, Math.min(2.5, str * 0.5 + wk * (-0.8 * (wk === 1 ? 0.5 : 1))));
+  let d3 = Math.max(-5, Math.min(2.5, sub * 0.5 + swk * (-0.6 * (swk === 1 ? 0.5 : 1))));
+  const total = Math.max(-10, Math.min(10, +(d1 + d2 + d3).toFixed(1)));
+  const [label, icon] = total >= 7 ? ['极热','🔥'] : total >= 4 ? ['较热','⚡'] : total >= 1 ? ['偏热','📈'] : total >= -1 ? ['中性','➖'] : total >= -4 ? ['偏冷','📉'] : total >= -7 ? ['较冷','❄️'] : ['极冷','💀'];
+  return { strength: total, label, icon, breakdown: { limitUp: lu, limitDown: ld, strong: str, weak: wk, subStrong: sub, subWeak: swk, dim1: +d1.toFixed(1), dim2: +d2.toFixed(1), dim3: +d3.toFixed(1) } };
+}
+const EM_HDR = { 'Referer': 'https://finance.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
+
+// 单板块强度（带成分股明细）
+app.get('/api/astock/sector-strength/:code', async (req, res) => {
+  try {
+    const code = req.params.code.replace(/[^A-Za-z0-9]/g, '').slice(0, 10);
+    const data = await aStockSwr('str:' + code, 30, async () => {
+      const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=300&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b:${code}+f:!50&fields=f2,f3,f4,f12,f14`;
+      const resp = await fetch(url, { headers: EM_HDR, signal: AbortSignal.timeout(10000) });
+      const d = await resp.json();
+      const stocks = (d.data?.diff || []).map(i => ({ code: i.f12, name: i.f14, price: i.f2 / 100, changePercent: i.f3 }));
+      const result = calcStrength(stocks);
+      result.code = code;
+      result.totalStocks = stocks.length;
+      result.stocks = stocks;
+      return result;
+    });
+    res.json(data);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 全板块强度排行
+app.get('/api/astock/sector-strength', async (req, res) => {
+  try {
+    const data = await aStockSwr('str:all', 30, async () => {
+      const secUrl = 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m:90+t:2+f:!50&fields=f2,f3,f4,f12,f14';
+      const secResp = await fetch(secUrl, { headers: EM_HDR, signal: AbortSignal.timeout(8000) });
+      const secData = await secResp.json();
+      const sectors = (secData.data?.diff || []).map(i => ({ code: i.f12, name: i.f14, changePercent: i.f3 }));
+      const results = await Promise.allSettled(sectors.map(async sec => {
+        const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=300&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b:${sec.code}+f:!50&fields=f3`;
+        const resp = await fetch(url, { headers: EM_HDR, signal: AbortSignal.timeout(10000) });
+        const d = await resp.json();
+        const stocks = (d.data?.diff || []).map(i => ({ changePercent: i.f3 }));
+        const s = calcStrength(stocks);
+        return { code: sec.code, name: sec.name, changePercent: sec.changePercent, ...s, totalStocks: stocks.length };
+      }));
+      return results.filter(r => r.status === 'fulfilled').map(r => r.value).sort((a, b) => b.strength - a.strength);
+    });
+    res.json(data);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // 市场统计（涨跌家数、成交额）
 app.get('/api/astock/market-stats', async (req, res) => {
   try {
