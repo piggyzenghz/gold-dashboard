@@ -326,26 +326,107 @@ function parseStcnHtml(html) {
   return items.slice(0, 20);
 }
 
+function parseSinaRoll(json, defaultSource = '新浪财经') {
+  const items = [];
+  const data = json?.result?.data;
+  if (!Array.isArray(data)) return items;
+  for (const item of data) {
+    const title = (item.title || '').trim();
+    const url = (item.url || item.link || '').trim();
+    const source = item.media_name || defaultSource;
+    const ct = item.create_time;
+    const time = ct ? new Date(ct * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    if (title && url) items.push({ title, url, source, time });
+  }
+  return items;
+}
+
+async function fetchSinaRoll(lid, num = 25) {
+  try {
+    const resp = await fetch(
+      `https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=${lid}&num=${num}&page=1&r=${Math.random().toFixed(4)}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.sina.com.cn/' }, signal: AbortSignal.timeout(8000) }
+    );
+    return parseSinaRoll(await resp.json());
+  } catch(e) { return []; }
+}
+
+async function fetchEastMoneyKuaixun() {
+  try {
+    const resp = await fetch(
+      'https://np-listapi.eastmoney.com/comm/web/getListInfo?client=web&type=1&mTypeAndCode=0%7C&pageSize=30&pageIndex=1',
+      { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.eastmoney.com/', 'Accept': 'application/json' }, signal: AbortSignal.timeout(8000) }
+    );
+    const json = await resp.json();
+    const list = json?.data?.list || [];
+    return list.map(item => ({
+      title: (item.title || item.Title || '').trim(),
+      url: item.url || item.ArtUrl || `https://finance.eastmoney.com/a/${item.id}.html`,
+      source: item.mediaName || '东方财富',
+      time: item.time || ''
+    })).filter(a => a.title);
+  } catch(e) { return []; }
+}
+
 app.get('/api/news/astock', async (req, res) => {
   try {
     const type = req.query.type || 'gs';
-    const allowed = ['gs', 'kx', 'yw'];
+    const allowed = ['gs', 'kx', 'yw', 'wm'];
     const t = allowed.includes(type) ? type : 'gs';
     const cKey = `astock-news:${t}`;
     const cached = cacheGet(cKey);
     if (cached) return res.json(cached);
 
-    const resp = await fetch(`https://www.stcn.com/article/list.html?type=${t}&page=1`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-        'Referer': `https://www.stcn.com/article/list/${t}.html`,
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      signal: AbortSignal.timeout(10000)
+    const seen = new Set();
+    const dedup = (arr) => arr.filter(a => {
+      const key = (a.title || '').slice(0, 20);
+      if (!key || seen.has(key)) return false;
+      seen.add(key); return true;
     });
-    const json = await resp.json();
-    const articles = parseStcnHtml(json.data || '');
-    cacheSet(cKey, articles, 600);
+
+    let articles = [];
+
+    if (t === 'wm') {
+      // 外媒涉A股报道
+      const wmSources = [
+        { name: 'Reuters中国', url: 'https://feeds.reuters.com/reuters/CNbusinessNews' },
+        { name: 'SCMP', url: 'https://www.scmp.com/rss/92/feed' },
+        { name: 'Caixin', url: 'https://www.caixinglobal.com/rss/feed/' },
+        { name: 'FT Asia', url: 'https://www.ft.com/rss/home/asia' },
+      ];
+      const results = await Promise.all(wmSources.map(s => fetchRSS(s.url, s.name)));
+      let raw = results.flat();
+      raw.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+      raw = dedup(raw).slice(0, 20);
+      const translated = await translateTitles(raw.map(a => a.title));
+      raw.forEach((a, i) => { a.titleZh = translated[i] || a.title; a.url = a.link || a.url || '#'; });
+      cacheSet(cKey, raw, 600);
+      return res.json(raw);
+    }
+
+    if (t === 'kx') {
+      // 快讯：新浪财经7×24 + 东方财富快讯
+      const [sinaItems, emItems] = await Promise.all([
+        fetchSinaRoll('2516', 30),
+        fetchEastMoneyKuaixun()
+      ]);
+      articles = dedup([...sinaItems, ...emItems]).slice(0, 40);
+    } else {
+      // gs/yw：证券时报 + 新浪财经
+      const sinaLid = t === 'yw' ? '2513' : '2562';
+      try {
+        const resp = await fetch(`https://www.stcn.com/article/list.html?type=${t}&page=1`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'Referer': `https://www.stcn.com/article/list/${t}.html`, 'X-Requested-With': 'XMLHttpRequest' },
+          signal: AbortSignal.timeout(8000)
+        });
+        const json = await resp.json();
+        articles = parseStcnHtml(json.data || '');
+      } catch(e) { console.warn('[stcn]', t, e.message); }
+      const sinaItems = await fetchSinaRoll(sinaLid);
+      articles = dedup([...articles, ...sinaItems]).slice(0, 30);
+    }
+
+    cacheSet(cKey, articles, t === 'kx' ? 180 : 300);
     res.json(articles);
   } catch(e) {
     res.status(500).json({ error: e.message });
