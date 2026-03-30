@@ -178,7 +178,11 @@ function snapshotSave(date, type, data) {
 }
 function snapshotLoad(type) {
   const row = _snapGet.get(type);
-  return row ? JSON.parse(row.data) : null;
+  if (!row) return null;
+  const data = JSON.parse(row.data);
+  // 跳过保存了错误的无效快照
+  if (data && data.error) return null;
+  return data;
 }
 function getCSTDateStr() {
   return new Date(Date.now() + 8 * 3600000).toISOString().split('T')[0];
@@ -2510,7 +2514,7 @@ app.post('/api/snapshot/save', async (req, res) => {
   for (const t of types) {
     try {
       const data = await fetch('http://localhost:3000' + t.url).then(r => r.json());
-      if (data) { snapshotSave(date, t.key, data); saved++; }
+      if (data && !data.error) { snapshotSave(date, t.key, data); saved++; }
     } catch(e) { console.warn('[Snapshot]', t.key, e.message); }
   }
   res.json({ date, saved, total: types.length });
@@ -2538,7 +2542,8 @@ cron.schedule('5 7 * * 1-5', async () => {
   for (const s of snapshotTypes) {
     try {
       const data = await s.fn();
-      if (data) { snapshotSave(date, s.key, data); saved++; }
+      if (data && !data.error) { snapshotSave(date, s.key, data); saved++; }
+      else { console.warn('[Snapshot] 跳过无效数据:', s.key, data?.error); }
     } catch(e) { console.warn('[Snapshot]', s.key, e.message); }
   }
   console.log('[Snapshot] Done:', saved + '/' + snapshotTypes.length);
