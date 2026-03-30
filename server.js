@@ -22,8 +22,8 @@ app.use(express.json());
 
 // ============ 安全中间件 ============
 
-// 全局速率限制：每 IP 每分钟 120 次
-app.use(rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, validate: { xForwardedForHeader: false } }));
+// 全局速率限制：每 IP 每分钟 600 次（个人看板，页面刷新频繁）
+app.use(rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false, validate: { xForwardedForHeader: false } }));
 
 // AI / ML / 研究 端点严格限流：每 IP 每分钟 5 次
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: '请求过于频繁，请稍后重试' }, validate: { xForwardedForHeader: false } });
