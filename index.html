@@ -2010,7 +2010,9 @@ const _tickerToYahoo = {'标普500':'^GSPC','纳斯达克':'^IXIC','VIX':'^VIX',
 
 async function updateCardData(symbol) {
   const info = symbolMap[symbol]; if (!info) return;
-  const data = await fetchChartData(symbol,'1d','5m');
+  // 优先 1d，无数据则 fallback 5d（收盘后仍有图）
+  var data = await fetchChartData(symbol,'1d','5m');
+  if (!data?.prices.length) data = await fetchChartData(symbol,'5d','15m');
   if (data?.prices.length) {
     const prices = data.prices, current = prices[prices.length-1];
     const open = data.meta.chartPreviousClose||prices[0];
@@ -2022,7 +2024,7 @@ async function updateCardData(symbol) {
     cel.textContent = `${isUp?'▲':'▼'} ${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
     createMiniChart(info.chartId, prices, isUp);
   } else {
-    // Yahoo无数据时从 ticker API fallback
+    // Yahoo完全无数据时从 ticker API fallback（无折线图）
     try {
       const resp = await fetch('/api/ticker');
       const tickers = await resp.json();
