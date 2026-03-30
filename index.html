@@ -471,7 +471,7 @@ a{color:var(--gold);text-decoration:none}
 .astock-chart-range button.active{color:#ff3d57;background:rgba(255,61,87,0.1)}
 .astock-main-row>.chart-section{display:flex;flex-direction:column}
 .astock-main-row>.chart-section #astock-main-chart{flex:1;min-height:150px}
-.sector-block-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.sector-block-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
 .sector-block{border-radius:8px;padding:8px 5px;text-align:center;min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:3px;cursor:pointer;transition:transform .15s,filter .15s;border:1px solid rgba(255,255,255,0.06)}
 .sector-block:hover{transform:scale(1.06);filter:brightness(1.15);z-index:2;position:relative}
 .sector-block-name{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,0.9);line-height:1.2}
@@ -2977,38 +2977,76 @@ async function loadSectorFlowChart(days) {
 
 state.sectorSortMode = 'chg';
 state.sectorStrData = null;
-state._sectorRawData = null;
+state.sectorData = [];
 
 async function fetchAStockSectors() {
   try {
     const resp = await fetch('/api/astock/sectors');
     const data = await resp.json();
     if (!data.length) return;
-    state._sectorRawData = data;
+    state.sectorData = data;
     renderSectorBlocks();
   } catch(e) {}
 }
 
+function topN(arr, key, n) {
+  const sorted = [...arr].sort((a,b) => b[key] - a[key]);
+  const top = sorted.slice(0, n);
+  const hasNeg = sorted.some(s => s[key] < 0);
+  const bottom = hasNeg ? sorted.filter(s => s[key] < 0).slice(-n).reverse() : sorted.slice(-n);
+  const topCodes = new Set(top.map(s => s.code));
+  return { top, bottom: bottom.filter(s => !topCodes.has(s.code)) };
+}
+
 function renderSectorBlocks() {
-  var data = state._sectorRawData;
-  if (!data) return;
-  var sorted;
-  if (state.sectorSortMode === 'str' && state.sectorStrData) {
-    sorted = state.sectorStrData.map(s => ({ code: s.code, name: s.name, changePercent: s.changePercent, strength: s.strength, label: s.label, icon: s.icon }));
-  } else {
-    sorted = [...data].sort((a,b) => b.changePercent - a.changePercent);
-  }
   const el = document.getElementById('astock-sector-blocks'); if (!el) return;
-  el.innerHTML = sorted.map(s => {
+  if (state.sectorSortMode === 'str' && state.sectorStrData) {
+    const { top, bottom } = topN(state.sectorStrData, 'strength', 20);
+    el.innerHTML = renderStrBlocks('🔥 强度前20', top) + renderStrBlocks('❄️ 强度后20', bottom);
+  } else {
+    const sorted = [...state.sectorData].sort((a,b) => b.changePercent - a.changePercent);
+    const { top, bottom } = topN(sorted, 'changePercent', 20);
+    el.innerHTML = renderChgBlocks('📈 涨幅前20', top) + renderChgBlocks('📉 跌幅前20', bottom);
+  }
+}
+
+function renderChgBlocks(title, list) {
+  let html = `<div style="grid-column:1/-1;font-size:11px;color:var(--text3);font-weight:600;padding:4px 0">${title}</div>`;
+  html += list.map(s => {
     const pct = s.changePercent || 0;
     const valStr = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
     const bg = getSectorBlockColor(pct);
-    const strInfo = s.strength != null ? ` | 强度${s.icon}${s.strength}` : '';
-    return `<div class="sector-block" style="background:${bg}" title="${s.name} ${valStr}${strInfo}" onclick="showSecPanel('${s.code}','${s.name}')">
-      <div class="sector-block-name">${s.name}</div>
+    return `<div class="sector-block" style="background:${bg}" title="${escH(s.name)} ${valStr}" onclick="showSecPanel('${s.code}','${escH(s.name)}')">
+      <div class="sector-block-name">${escH(s.name)}</div>
       <div class="sector-block-val">${valStr}</div>
     </div>`;
   }).join('');
+  return html;
+}
+
+// 强度配色：金色（热）→ 灰色（中性）→ 蓝色（冷）
+function getStrBlockColor(str) {
+  if (str >= 7)  return 'rgba(240,185,11,0.75)';
+  if (str >= 4)  return 'rgba(240,185,11,0.50)';
+  if (str >= 1)  return 'rgba(240,185,11,0.30)';
+  if (str >= -1) return 'rgba(148,163,184,0.18)';
+  if (str >= -4) return 'rgba(59,130,246,0.30)';
+  if (str >= -7) return 'rgba(59,130,246,0.50)';
+  return 'rgba(59,130,246,0.70)';
+}
+
+function renderStrBlocks(title, list) {
+  let html = `<div style="grid-column:1/-1;font-size:11px;color:var(--text3);font-weight:600;padding:4px 0">${title}</div>`;
+  html += list.map(s => {
+    const bg = getStrBlockColor(s.strength);
+    const txtCol = s.strength >= 4 ? '#fff' : s.strength >= 1 ? '#f0b90b' : s.strength >= -1 ? '#94a3b8' : s.strength >= -4 ? '#93c5fd' : '#fff';
+    const valCol = s.strength >= 1 ? 'rgba(255,255,255,0.8)' : s.strength >= -1 ? 'rgba(148,163,184,0.7)' : 'rgba(255,255,255,0.8)';
+    return `<div class="sector-block" style="background:${bg}" title="${escH(s.name)} | 强度${s.strength} ${s.icon}${s.label}" onclick="showSecPanel('${s.code}','${escH(s.name)}')">
+      <div class="sector-block-name" style="color:${txtCol}">${escH(s.name)}</div>
+      <div style="font-size:11px;color:${valCol};font-weight:700">${s.icon}${s.strength > 0 ? '+' : ''}${s.strength}</div>
+    </div>`;
+  }).join('');
+  return html;
 }
 
 async function sortSectors(mode) {
