@@ -1,6 +1,6 @@
 {
   "name": "gold-dashboard",
-  "version": "1.7.0",
+  "version": "1.14.0",
   "description": "黄金价格监控中心",
   "main": "server.js",
   "scripts": {
