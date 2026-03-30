@@ -210,6 +210,40 @@ async function aStockSwr(key, tradingTTL, fetchFn) {
   return fetchFn(); // 完全无数据时兜底
 }
 
+// ============ Sina 行情公共工具 ============
+const SINA_HEADERS = { 'Referer': 'https://finance.sina.com.cn', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
+
+// 获取 Sina 简版行情（s_ 前缀指数），返回 { [code]: {name,price,change,changePercent,volume,turnover} }
+async function fetchSinaSimple(codes) {
+  const resp = await fetch(`https://hq.sinajs.cn/list=${codes}`, { headers: SINA_HEADERS });
+  const text = new TextDecoder('gbk').decode(await resp.arrayBuffer());
+  const results = {};
+  for (const line of text.split('\n')) {
+    const m = line.match(/var hq_str_(.+?)="(.+?)"/);
+    if (!m) continue;
+    const p = m[2].split(',');
+    results[m[1]] = { name: p[0], price: parseFloat(p[1]), change: parseFloat(p[2]), changePercent: parseFloat(p[3]), volume: parseInt(p[4]) || 0, turnover: parseFloat(p[5]) || 0 };
+  }
+  return results;
+}
+
+// 获取 Sina 完整行情（sh/sz 前缀个股），返回数组
+async function fetchSinaFull(sinaCodes) {
+  const resp = await fetch(`https://hq.sinajs.cn/list=${sinaCodes}`, { headers: SINA_HEADERS });
+  const text = new TextDecoder('gbk').decode(await resp.arrayBuffer());
+  const results = [];
+  for (const line of text.trim().split('\n')) {
+    const m = line.match(/hq_str_(\w+)="(.+)"/);
+    if (!m) continue;
+    const code = m[1].replace(/^(sh|sz)/, '');
+    const f = m[2].split(',');
+    if (!f[3] || !parseFloat(f[3])) continue;
+    const price = parseFloat(f[3]), prevClose = parseFloat(f[2]), change = price - prevClose;
+    results.push({ code, name: f[0], price, prevClose, change, changePercent: prevClose > 0 ? (change / prevClose) * 100 : 0, open: parseFloat(f[1]), high: parseFloat(f[4]), low: parseFloat(f[5]), volume: Math.round(parseFloat(f[8]) / 100), amount: parseFloat(f[9]), time: f[31] || '' });
+  }
+  return results;
+}
+
 // ============ 配置同步 API (⑧多设备同步) ============
 const CONFIG_ALLOWED_KEYS = new Set(['watchlist', 'usWatchlist', 'cryptoWatchlist', 'alerts', 'theme', 'settings']);
 
@@ -338,32 +372,7 @@ app.get('/api/sina', async (req, res) => {
     const cKey = `sina:${codes}`;
     const cached = cacheGet(cKey);
     if (cached) return res.json(cached);
-    const url = `https://hq.sinajs.cn/list=${codes}`;
-    const resp = await fetch(url, {
-      headers: {
-        'Referer': 'https://finance.sina.com.cn',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
-      }
-    });
-    const buffer = await resp.arrayBuffer();
-    const text = new TextDecoder('gbk').decode(buffer);
-    const results = {};
-    const lines = text.split('\n').filter(l => l.trim());
-    for (const line of lines) {
-      const match = line.match(/var hq_str_(.+?)="(.+?)"/);
-      if (match) {
-        const code = match[1];
-        const parts = match[2].split(',');
-        results[code] = {
-          name: parts[0],
-          price: parseFloat(parts[1]),
-          change: parseFloat(parts[2]),
-          changePercent: parseFloat(parts[3]),
-          volume: parts[4],
-          turnover: parts[5]
-        };
-      }
-    }
+    const results = await fetchSinaSimple(codes);
     cacheSet(cKey, results, getTTL(30));
     res.json(results);
   } catch (e) {
@@ -847,7 +856,7 @@ app.get('/api/macro/drivers', async (req, res) => {
       const q = {};
       quotes.forEach(r => { q[r.symbol] = r; });
 
-      const CPI = 2.7;
+      const CPI = 2.7; // 最新 CPI 同比（需定期更新）
       const vixVal  = q['^VIX']?.regularMarketPrice       || 20;
       const tnxVal  = q['^TNX']?.regularMarketPrice        || 4.3;
       const dxyChgPct = q['DX-Y.NYB']?.regularMarketChangePercent || 0;
@@ -1057,24 +1066,7 @@ app.get('/api/astock/indices', async (req, res) => {
   try {
     const cached = cacheGet('astock:indices');
     if (cached) return res.json(cached);
-    const codes = 's_sh000001,s_sz399001,s_sh000300,s_sz399006,s_sh000688,s_sh000016';
-    const url = `https://hq.sinajs.cn/list=${codes}`;
-    const resp = await fetch(url, { headers: { 'Referer': 'https://finance.sina.com.cn', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
-    const buffer = await resp.arrayBuffer();
-    const text = new TextDecoder('gbk').decode(buffer);
-    const results = {};
-    const lines = text.split('\n').filter(l => l.trim());
-    for (const line of lines) {
-      const match = line.match(/var hq_str_(.+?)="(.+?)"/);
-      if (match) {
-        const parts = match[2].split(',');
-        results[match[1]] = {
-          name: parts[0], price: parseFloat(parts[1]),
-          change: parseFloat(parts[2]), changePercent: parseFloat(parts[3]),
-          volume: parseInt(parts[4]) || 0, turnover: parseFloat(parts[5]) || 0
-        };
-      }
-    }
+    const results = await fetchSinaSimple('s_sh000001,s_sz399001,s_sh000300,s_sz399006,s_sh000688,s_sh000016');
     cacheSet('astock:indices', results, getTTL(30));
     res.json(results);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1390,30 +1382,7 @@ app.get('/api/astock/quote', async (req, res) => {
     const codes = (req.query.codes || '').split(',').map(s => s.trim()).filter(s => /^\d{6}$/.test(s)).slice(0, 50);
     if (!codes.length) return res.json([]);
     const sinaList = codes.map(c => sinaPrefix(c) + c).join(',');
-    const url = 'https://hq.sinajs.cn/list=' + sinaList;
-    const resp = await fetch(url, { headers: { 'Referer': 'https://finance.sina.com.cn', 'User-Agent': 'Mozilla/5.0' } });
-    const buf = await resp.arrayBuffer();
-    const text = new TextDecoder('gbk').decode(buf);
-    const results = [];
-    for (const line of text.trim().split('\n')) {
-      const m = line.match(/hq_str_(\w+)="(.+)"/);
-      if (!m) continue;
-      const code = m[1].replace(/^(sh|sz)/, '');
-      const f = m[2].split(',');
-      if (!f[3] || !parseFloat(f[3])) continue; // 停牌/无数据
-      const price = parseFloat(f[3]);
-      const prevClose = parseFloat(f[2]);
-      const change = price - prevClose;
-      results.push({
-        code, name: f[0],
-        price, prevClose, change,
-        changePercent: prevClose > 0 ? (change / prevClose) * 100 : 0,
-        open: parseFloat(f[1]), high: parseFloat(f[4]), low: parseFloat(f[5]),
-        volume: Math.round(parseFloat(f[8]) / 100), // 手→股, 再转手
-        amount: parseFloat(f[9]),
-        time: f[31] || '',
-      });
-    }
+    const results = await fetchSinaFull(sinaList);
     res.json(results);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1442,24 +1411,18 @@ app.get('/api/astock/detail/:code', async (req, res) => {
     let quote = null;
     if (sinaRes.status === 'fulfilled' && sinaRes.value.ok) {
       const buf = await sinaRes.value.arrayBuffer();
+      // 复用 fetchSinaFull 的解析逻辑（手动解码已获取的 buffer）
       const text = new TextDecoder('gbk').decode(buf);
-      const m = text.match(/hq_str_(\w+)="(.+)"/);
-      if (m) {
-        const f = m[2].split(',');
-        if (f[3] && parseFloat(f[3])) {
-          const price = parseFloat(f[3]);
-          const prevClose = parseFloat(f[2]);
-          const change = price - prevClose;
-          quote = {
-            code, name: f[0], price, prevClose, change,
-            changePercent: prevClose > 0 ? (change / prevClose) * 100 : 0,
-            open: parseFloat(f[1]), high: parseFloat(f[4]), low: parseFloat(f[5]),
-            volume: Math.round(parseFloat(f[8]) / 100),
-            amount: parseFloat(f[9]),
-            time: f[31] || '',
-          };
-        }
+      const parsed = [];
+      for (const line of text.trim().split('\n')) {
+        const m = line.match(/hq_str_(\w+)="(.+)"/);
+        if (!m) continue;
+        const cd = m[1].replace(/^(sh|sz)/, ''), f = m[2].split(',');
+        if (!f[3] || !parseFloat(f[3])) continue;
+        const price = parseFloat(f[3]), prevClose = parseFloat(f[2]), chg = price - prevClose;
+        parsed.push({ code: cd, name: f[0], price, prevClose, change: chg, changePercent: prevClose > 0 ? (chg / prevClose) * 100 : 0, open: parseFloat(f[1]), high: parseFloat(f[4]), low: parseFloat(f[5]), volume: Math.round(parseFloat(f[8]) / 100), amount: parseFloat(f[9]), time: f[31] || '' });
       }
+      quote = parsed[0] || null;
     }
 
     let fundamentals = null;
@@ -1478,9 +1441,7 @@ app.get('/api/astock/detail/:code', async (req, res) => {
           high52w: d[13], low52w: d[14],
           dividendYield: d[15],
         };
-        const sigs = computeSignals(s, 20, 40);
-        const total = Object.values(sigs).reduce((a, b) => a + b, 0);
-        fundamentals = { ...s, sigs, signal: total, rating: getSignalRating(total) };
+        fundamentals = scoreStock(s, 20, 40);
       }
     }
 
@@ -1597,6 +1558,12 @@ function getSignalRating(total) {
   return '强烈卖出';
 }
 
+function scoreStock(s, medPe, p75Pe) {
+  const sigs = computeSignals(s, medPe, p75Pe);
+  const signal = Object.values(sigs).reduce((a, b) => a + b, 0);
+  return { ...s, sigs, signal, rating: getSignalRating(signal) };
+}
+
 app.get('/api/astock/screen', async (req, res) => {
   try {
     const themeKey = req.query.theme || 'ai-computing';
@@ -1651,11 +1618,7 @@ app.get('/api/astock/screen', async (req, res) => {
     const medPe = calcMedian(stocks.map(s => s.pe));
     const p75Pe = calcP75(stocks.map(s => s.pe));
 
-    const scored = stocks.map(s => {
-      const sigs = computeSignals(s, medPe, p75Pe);
-      const total = Object.values(sigs).reduce((a, b) => a + b, 0);
-      return { ...s, sigs, signal: total, rating: getSignalRating(total) };
-    }).sort((a, b) => b.signal - a.signal).slice(0, 20);
+    const scored = stocks.map(s => scoreStock(s, medPe, p75Pe)).sort((a, b) => b.signal - a.signal).slice(0, 20);
 
     res.json({ theme: themeKey, nameZh: preset.nameZh, total: data.totalCount || 0, stocks: scored });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -1881,9 +1844,7 @@ app.get('/api/us/detail/:symbol', async (req, res) => {
             };
             if (s.sma50 == null && quote) s.sma50 = quote.sma50;
             if (s.sma200 == null && quote) s.sma200 = quote.sma200;
-            const sigs = computeSignals(s, 25, 50);
-            const total = Object.values(sigs).reduce((a, b) => a + b, 0);
-            fundamentals = { ...s, sigs, signal: total, rating: getSignalRating(total) };
+            fundamentals = scoreStock(s, 25, 50);
           }
         }
       } catch(e) { /* TV fetch failed */ }
@@ -2010,11 +1971,7 @@ app.get('/api/us/screen', async (req, res) => {
     });
     const medPe = calcMedian(stocks.map(s => s.pe));
     const p75Pe = calcP75(stocks.map(s => s.pe));
-    const scored = stocks.map(s => {
-      const sigs = computeSignals(s, medPe, p75Pe);
-      const total = Object.values(sigs).reduce((a, b) => a + b, 0);
-      return { ...s, sigs, signal: total, rating: getSignalRating(total) };
-    }).sort((a, b) => b.signal - a.signal).slice(0, 20);
+    const scored = stocks.map(s => scoreStock(s, medPe, p75Pe)).sort((a, b) => b.signal - a.signal).slice(0, 20);
     res.json({ theme: themeKey, nameZh: preset.nameZh, total: data.totalCount || 0, stocks: scored });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -2212,7 +2169,7 @@ async function generateDailyReport(type) {
         marketSummary += `• ${s.f14}: ${(s.f2/100).toFixed(2)} (${pct>0?'+':''}${pct.toFixed(2)}%)\n`;
       }
     });
-  } catch(e) {}
+  } catch(e) { console.warn('[DailyReport] 市场数据采集失败:', e.message); }
 
   const typeLabel = type === 'morning' ? '📊 盘前日报' : '📈 盘后复盘';
   const prompt = type === 'morning'
@@ -2554,7 +2511,7 @@ app.post('/api/snapshot/save', async (req, res) => {
     try {
       const data = await fetch('http://localhost:3000' + t.url).then(r => r.json());
       if (data) { snapshotSave(date, t.key, data); saved++; }
-    } catch(e) {}
+    } catch(e) { console.warn('[Snapshot]', t.key, e.message); }
   }
   res.json({ date, saved, total: types.length });
 });
