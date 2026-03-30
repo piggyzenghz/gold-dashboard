@@ -2005,25 +2005,50 @@ const symbolMap = {
   '^VIX':{priceId:'price-vix',changeId:'change-vix',chartId:'chart-vix-mini',label:'VIX'}
 };
 
+// ticker name → Yahoo symbol 映射（用于 fallback）
+const _tickerToYahoo = {'标普500':'^GSPC','纳斯达克':'^IXIC','VIX':'^VIX','道琼斯':'^DJI','白银':'SI=F','原油':'CL=F','美元指数':'DX-Y.NYB','日经225':'^N225','比特币':'BTC-USD'};
+
 async function updateCardData(symbol) {
   const info = symbolMap[symbol]; if (!info) return;
-  const data = await fetchChartData(symbol,'1d','5m'); if (!data?.prices.length) return;
-  const prices = data.prices, current = prices[prices.length-1];
-  const open = data.meta.chartPreviousClose||prices[0];
-  const change = current-open, pct = (change/open)*100, isUp = change>=0, sign = isUp?'+':'';
-  state.marketData[symbol] = { price:current, change, changePct:pct };
-  document.getElementById(info.priceId).textContent = current.toFixed(2);
-  const cel = document.getElementById(info.changeId);
-  cel.className = 'card-change '+(isUp?'up':'down');
-  cel.textContent = `${isUp?'▲':'▼'} ${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
-  createMiniChart(info.chartId, prices, isUp);
+  const data = await fetchChartData(symbol,'1d','5m');
+  if (data?.prices.length) {
+    const prices = data.prices, current = prices[prices.length-1];
+    const open = data.meta.chartPreviousClose||prices[0];
+    const change = current-open, pct = (change/open)*100, isUp = change>=0, sign = isUp?'+':'';
+    state.marketData[symbol] = { price:current, change, changePct:pct };
+    document.getElementById(info.priceId).textContent = current.toFixed(2);
+    const cel = document.getElementById(info.changeId);
+    cel.className = 'card-change '+(isUp?'up':'down');
+    cel.textContent = `${isUp?'▲':'▼'} ${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
+    createMiniChart(info.chartId, prices, isUp);
+  } else {
+    // Yahoo无数据时从 ticker API fallback
+    try {
+      const resp = await fetch('/api/ticker');
+      const tickers = await resp.json();
+      const match = tickers.find(t => _tickerToYahoo[t.name] === symbol);
+      if (match) {
+        const price = parseFloat(match.price), change = match.change, pct = match.changePct;
+        const isUp = change >= 0, sign = isUp ? '+' : '';
+        state.marketData[symbol] = { price, change, changePct: pct };
+        document.getElementById(info.priceId).textContent = price.toFixed(2);
+        const cel = document.getElementById(info.changeId);
+        cel.className = 'card-change ' + (isUp ? 'up' : 'down');
+        cel.textContent = `${isUp?'▲':'▼'} ${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
+      }
+    } catch(e) {}
+  }
   // extra gauge card update for DXY
   if (symbol === 'DX-Y.NYB') {
-    const el = document.getElementById('dxy-value'); if (!el) return;
-    el.textContent = current.toFixed(2);
-    el.style.color = isUp ? '#ef4444' : '#10b981';
-    const b = document.getElementById('dxy-bar'); if (b) b.style.width = Math.min(Math.max((current-95)/(115-95),0),1)*100+'%';
-    const s = document.getElementById('dxy-sub'); if (s) s.textContent = current>105?'美元偏强 · 压制金价':current<100?'美元偏弱 · 利好黄金':'美元中性';
+    var current = state.marketData[symbol]?.price;
+    if (current) {
+      var isUp = (state.marketData[symbol]?.change||0) >= 0;
+      const el = document.getElementById('dxy-value'); if (!el) return;
+      el.textContent = current.toFixed(2);
+      el.style.color = isUp ? '#ef4444' : '#10b981';
+      const b = document.getElementById('dxy-bar'); if (b) b.style.width = Math.min(Math.max((current-95)/(115-95),0),1)*100+'%';
+      const s = document.getElementById('dxy-sub'); if (s) s.textContent = current>105?'美元偏强 · 压制金价':current<100?'美元偏弱 · 利好黄金':'美元中性';
+    }
   }
 }
 
