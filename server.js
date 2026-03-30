@@ -1018,6 +1018,21 @@ app.get('/api/astock/sector-strength', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// 板块搜索（用东方财富suggest API，支持模糊匹配）
+app.get('/api/astock/sector-search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json([]);
+    const url = 'https://searchapi.eastmoney.com/api/suggest/get?input=' + encodeURIComponent(q) + '&type=14&token=D43BF722C8E33BDC906FB84D85E326&count=15';
+    const resp = await fetch(url, { headers: EM_HDR, signal: AbortSignal.timeout(8000) });
+    const data = await resp.json();
+    const items = (data.QuotationCodeTable?.Data || [])
+      .filter(i => i.Classify === 'BK' && i.Code?.startsWith('BK'))
+      .map(i => ({ code: i.Code, name: i.Name }));
+    res.json(items);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // 市场统计（涨跌家数、成交额）
 app.get('/api/astock/market-stats', async (req, res) => {
   try {
