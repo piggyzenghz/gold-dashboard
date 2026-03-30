@@ -3376,7 +3376,7 @@ function renderCapitalFlowList(id, items, isInflow) {
     const flowStr = (flow >= 0 ? '+' : '') + flow.toFixed(2) + '亿';
     const pctStr = (item.changePercent||0).toFixed(2) + '%';
     const isUp = (item.changePercent||0) >= 0;
-    return `<div class="stock-item" data-code="${escH(item.code||'')}" data-name="${escH(item.name||'')}">
+    return `<div class="stock-item" data-code="${escH(item.code||'')}" data-name="${escH(item.name||'')}" style="cursor:pointer" onclick="showSecPanel('${escH(item.code||'')}','${escH(item.name||'')}')">
       <span class="stock-name" style="font-weight:500">${escH(item.name||'--')}</span>
       <span style="font-size:11px;color:var(--text3);flex-shrink:0">${pctStr.startsWith('-')?'':'+'}<span class="${isUp?'aup':'adown'}">${pctStr}</span></span>
       <span class="stock-val ${flow>=0?'aup':'adown'}">${flowStr}</span>
