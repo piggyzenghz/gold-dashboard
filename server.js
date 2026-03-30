@@ -801,6 +801,29 @@ BEAR|情景标题|概率(整数%)|目标价位区间|80字以内分析
 
 // ============ A股数据 ============
 
+// A股分时走势（东方财富 trends2 接口，替代 Yahoo Finance 的不稳定数据）
+app.get('/api/astock/trends', async (req, res) => {
+  try {
+    const secid = req.query.secid || '1.000001'; // 默认上证指数
+    const data = await aStockSwr(`astock:trends:${secid}`, 5, async () => {
+      const url = `https://push2.eastmoney.com/api/qt/stock/trends2/get?secid=${secid}&fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ut=fa5fd1943c7b386f172d6893dbbd4dc0&iscr=0`;
+      const resp = await fetch(url, { headers: { 'Referer': 'https://quote.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }, redirect: 'follow' });
+      const d = await resp.json();
+      const trends = d.data?.trends || [];
+      const preClose = d.data?.preClose || 0;
+      // 格式: "2026-03-30 09:30,开盘,最高,最低,收盘,成交量,成交额,均价"
+      const timestamps = [], prices = [];
+      for (const t of trends) {
+        const parts = t.split(',');
+        timestamps.push(parts[0]);
+        prices.push(parseFloat(parts[4])); // 收盘价
+      }
+      return { timestamps, prices, preClose };
+    });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // 六大指数
 app.get('/api/astock/indices', async (req, res) => {
   try {
@@ -896,24 +919,61 @@ app.get('/api/astock/sectors', async (req, res) => {
 // 市场统计（涨跌家数、成交额）
 app.get('/api/astock/market-stats', async (req, res) => {
   try {
-    const url = 'https://push2.eastmoney.com/api/qt/stock/get?ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&secid=1.000001&fields=f117,f163,f164,f165,f166,f167,f168';
-    const resp = await fetch(url, { headers: { 'Referer': 'https://quote.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
-    const data = await resp.json();
-    const d = data.data || {};
-    const n = v => (typeof v === 'number' ? v : 0);
-    res.json({ limitUp: n(d.f163), advance: n(d.f164), decline: n(d.f165), flat: n(d.f166), limitDown: n(d.f167), turnover: n(d.f168) / 1e8 });
+    const data = await aStockSwr('astock:market-stats', 10, async () => {
+      const emHdr = { 'Referer': 'https://quote.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' };
+      // push2delay 限制每页100条，需分页获取全部A股涨跌统计
+      const totalPages = 60;
+      const baseUrl = 'https://push2.eastmoney.com/api/qt/clist/get?pz=100&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f12&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048&fields=f3&po=0';
+      const pages = [];
+      for (let pn = 1; pn <= totalPages; pn++) {
+        pages.push(fetch(baseUrl + '&pn=' + pn, { headers: emHdr, redirect: 'follow', signal: AbortSignal.timeout(10000) })
+          .then(r => r.json()).then(d => d.data?.diff || []).catch(() => []));
+      }
+      const results = await Promise.all(pages);
+      const all = results.flat();
+      let advance = 0, decline = 0, flat = 0, limitUp = 0, limitDown = 0;
+      for (const s of all) {
+        const c = s.f3;
+        if (typeof c !== 'number') continue;
+        if (c > 0) advance++; else if (c < 0) decline++; else flat++;
+        if (c >= 9.9) limitUp++;
+        if (c <= -9.9) limitDown++;
+      }
+      // 成交额：从沪深两市指数 f48 字段获取
+      const [shR, szR] = await Promise.all([
+        fetch('https://push2.eastmoney.com/api/qt/stock/get?ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&secid=1.000001&fields=f48', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
+        fetch('https://push2.eastmoney.com/api/qt/stock/get?ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&secid=0.399001&fields=f48', { headers: emHdr, redirect: 'follow' }).then(r => r.json()).catch(() => ({})),
+      ]);
+      const shTurnover = (typeof shR.data?.f48 === 'number' ? shR.data.f48 : 0) / 1e8;
+      const szTurnover = (typeof szR.data?.f48 === 'number' ? szR.data.f48 : 0) / 1e8;
+      return { limitUp, advance, decline, flat, limitDown, turnover: Math.round((shTurnover + szTurnover) * 100) / 100 };
+    });
+    res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 北向资金
+// 北向资金（使用 kamt.rtmin 分钟级接口，kamt/get 已失效）
 app.get('/api/astock/northbound', async (req, res) => {
   try {
-    const url = 'https://push2.eastmoney.com/api/qt/kamt/get?ut=bd1d9ddb04089700cf9c27f6f7426281&fields=f1,f2,f3,f4,f5,f6,f7,f8';
-    const resp = await fetch(url, { headers: { 'Referer': 'https://data.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
-    const data = await resp.json();
-    const sh = (data.data?.f2 || 0) / 1e8;
-    const sz = (data.data?.f4 || 0) / 1e8;
-    res.json({ sh, sz, total: sh + sz });
+    const data = await aStockSwr('astock:northbound', 10, async () => {
+      const url = 'https://push2.eastmoney.com/api/qt/kamt.rtmin/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54,f55,f56&ut=b2884a393a59ad64002292a3e90d46a5';
+      const resp = await fetch(url, { headers: { 'Referer': 'https://data.eastmoney.com', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }, redirect: 'follow' });
+      const d = await resp.json();
+      // s2n: 北向资金分钟数据，格式 "HH:MM,沪净,沪余额,深净,深余额,合计净"
+      const s2n = d.data?.s2n || [];
+      let sh = 0, sz = 0;
+      // 取最后一条有效数据（非"-"）
+      for (let i = s2n.length - 1; i >= 0; i--) {
+        const parts = s2n[i].split(',');
+        if (parts[1] && parts[1] !== '-') {
+          sh = parseFloat(parts[1]) / 1e4; // 万→亿
+          sz = parseFloat(parts[3]) / 1e4;
+          break;
+        }
+      }
+      return { sh: Math.round(sh * 100) / 100, sz: Math.round(sz * 100) / 100, total: Math.round((sh + sz) * 100) / 100 };
+    });
+    res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

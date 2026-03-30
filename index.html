@@ -1861,9 +1861,11 @@ async function fetchSinaData() {
 
 async function updateSseSparkline() {
   try {
-    const data = await fetchChartData('000001.SS','1d','5m'); if (!data?.prices.length) return;
+    const resp = await fetch('/api/astock/trends?secid=1.000001');
+    const data = await resp.json();
+    if (!data?.prices?.length) return;
     const prices = data.prices;
-    const open = data.meta.chartPreviousClose||prices[0];
+    const open = data.preClose || prices[0];
     const isUp = prices[prices.length-1] >= open;
     createMiniChart('chart-sse-mini', prices, isUp);
   } catch(e) {}
@@ -3011,25 +3013,85 @@ function updateAStockSignal() {
   } catch(e) { el.textContent = '股金联动信号计算中...'; }
 }
 
+// Yahoo symbol → Eastmoney secid 映射
+var _yahooToSecid = {'000001.SS':'1.000001','000300.SS':'1.000300','399001.SZ':'0.399001','399006.SZ':'0.399006','000688.SS':'1.000688','000016.SS':'1.000016'};
+
+// 生成A股全天交易时间轴（分钟级：9:30-11:30, 13:00-15:00）
+function _genAStockTimeline() {
+  var ts = [];
+  for (var h=9;h<=11;h++) for (var m=0;m<60;m++) {
+    if (h===9 && m<30) continue;
+    if (h===11 && m>30) continue;
+    ts.push(('0'+h).slice(-2)+':'+('0'+m).slice(-2));
+  }
+  for (var h=13;h<=15;h++) for (var m=0;m<60;m++) {
+    if (h===15 && m>0) continue;
+    ts.push(('0'+h).slice(-2)+':'+('0'+m).slice(-2));
+  }
+  return ts;
+}
+
 async function loadAStockChart(code, range, interval) {
   if (code) state.astockChartCode = code;
   if (range) state.astockRange = range;
   if (interval) state.astockInterval = interval;
-  const activeCode = state.astockChartCode;
-  const activeRange = state.astockRange;
-  const activeInterval = state.astockInterval;
-  document.querySelectorAll('.astock-chart-tab').forEach(t => t.classList.toggle('active', t.dataset.code === activeCode));
-  document.querySelectorAll('#astock-range-el button').forEach(b => b.classList.toggle('active', b.dataset.range === activeRange));
-  const data = await fetchChartData(activeCode, activeRange, activeInterval); if (!data || !data.prices.length) return;
-  const chart = initChart('astock-main-chart'); if (!chart) return;
-  const isUp = data.prices[data.prices.length-1] >= data.prices[0];
-  const color = isUp ? '#ff3d57' : '#00c853';
+  var activeCode = state.astockChartCode;
+  var activeRange = state.astockRange;
+  var activeInterval = state.astockInterval;
+  document.querySelectorAll('.astock-chart-tab').forEach(function(t){ t.classList.toggle('active', t.dataset.code === activeCode); });
+  document.querySelectorAll('#astock-range-el button').forEach(function(b){ b.classList.toggle('active', b.dataset.range === activeRange); });
+
+  var chart = initChart('astock-main-chart'); if (!chart) return;
+  var secid = _yahooToSecid[activeCode];
+
+  // 日内分时：使用东方财富 trends 接口 + 全天时间轴
+  if (activeRange === '1d' && secid) {
+    try {
+      var resp = await fetch('/api/astock/trends?secid=' + secid);
+      var tData = await resp.json();
+      if (!tData || !tData.prices || !tData.prices.length) return;
+      // 将 trends 数据映射到全天时间轴上
+      var fullTimeline = _genAStockTimeline();
+      var dataMap = {};
+      for (var i=0; i<tData.timestamps.length; i++) {
+        // timestamps 格式 "2026-03-30 09:30" → 取 "09:30"
+        var hm = tData.timestamps[i].split(' ')[1];
+        if (hm) dataMap[hm] = tData.prices[i];
+      }
+      var prices = fullTimeline.map(function(t){ return dataMap[t] !== undefined ? dataMap[t] : null; });
+      var preClose = tData.preClose || tData.prices[0];
+      var lastPrice = tData.prices[tData.prices.length-1];
+      var isUp = lastPrice >= preClose;
+      var color = isUp ? '#ff3d57' : '#00c853';
+      chart.setOption({
+        tooltip:{trigger:'axis',backgroundColor:'rgba(19,26,42,0.95)',borderColor:'#1e2a3a',textStyle:{color:'#e8eaed',fontSize:12},
+          formatter:function(p){ var v=p[0]; if(v.value==null) return ''; var chg=((v.value-preClose)/preClose*100).toFixed(2); return v.axisValue+'<br/>'+v.value.toFixed(2)+' <span style="color:'+(chg>=0?'#ff3d57':'#00c853')+'">'+( chg>=0?'+':'')+chg+'%</span>'; }},
+        grid:{top:20,right:55,bottom:25,left:65},
+        xAxis:{data:fullTimeline,axisLine:{lineStyle:{color:'#1e2a3a'}},axisLabel:{color:'#556677',fontSize:10,
+          interval:function(i){ return i===0||fullTimeline[i]==='10:00'||fullTimeline[i]==='10:30'||fullTimeline[i]==='11:00'||fullTimeline[i]==='11:30'||fullTimeline[i]==='13:00'||fullTimeline[i]==='13:30'||fullTimeline[i]==='14:00'||fullTimeline[i]==='14:30'||fullTimeline[i]==='15:00'; }},
+          splitLine:{show:false}},
+        yAxis:{scale:true,axisLine:{show:false},axisLabel:{color:'#556677',fontSize:10},
+          splitLine:{lineStyle:{color:'#1e2a3a',type:'dashed'}}},
+        visualMap:{show:false,pieces:[{gt:preClose,color:'#ff3d57'},{lte:preClose,color:'#00c853'}],seriesIndex:0},
+        series:[{type:'line',data:prices,smooth:false,symbol:'none',connectNulls:false,lineStyle:{width:1.5},
+          markLine:{silent:true,symbol:'none',lineStyle:{color:'#556677',type:'dashed',width:1},
+            data:[{yAxis:preClose,label:{show:true,position:'insideEndTop',formatter:function(){return '昨收 '+preClose.toFixed(2);},color:'#556677',fontSize:9}}]},
+          areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color+'20'},{offset:1,color:color+'00'}])}}]
+      }, true);
+      return;
+    } catch(e) {}
+  }
+
+  // 非日内（周/月/年）或非A股指数：走 Yahoo Finance
+  var data = await fetchChartData(activeCode, activeRange, activeInterval); if (!data || !data.prices.length) return;
+  var isUp2 = data.prices[data.prices.length-1] >= data.prices[0];
+  var color2 = isUp2 ? '#ff3d57' : '#00c853';
   chart.setOption({
     tooltip:{trigger:'axis',backgroundColor:'rgba(19,26,42,0.95)',borderColor:'#1e2a3a',textStyle:{color:'#e8eaed',fontSize:12}},
     grid:{top:15,right:45,bottom:25,left:65},
     xAxis:{data:data.timestamps,axisLine:{lineStyle:{color:'#1e2a3a'}},axisLabel:{color:'#556677',fontSize:10},splitLine:{show:false}},
     yAxis:{scale:true,axisLine:{show:false},axisLabel:{color:'#556677',fontSize:10},splitLine:{lineStyle:{color:'#1e2a3a',type:'dashed'}}},
-    series:[{type:'line',data:data.prices,smooth:true,symbol:'none',lineStyle:{width:2,color},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color+'30'},{offset:1,color:color+'00'}])}}],
+    series:[{type:'line',data:data.prices,smooth:true,symbol:'none',lineStyle:{width:2,color:color2},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:color2+'30'},{offset:1,color:color2+'00'}])}}],
     dataZoom:[{type:'inside',start:0,end:100}]
   }, true);
 }
