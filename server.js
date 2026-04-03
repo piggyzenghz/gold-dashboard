@@ -1381,7 +1381,8 @@ app.get('/api/astock/quote', async (req, res) => {
     const codes = (req.query.codes || '').split(',').map(s => s.trim()).filter(s => /^\d{6}$/.test(s)).slice(0, 50);
     if (!codes.length) return res.json([]);
     const sinaList = codes.map(c => sinaPrefix(c) + c).join(',');
-    const results = await fetchSinaFull(sinaList);
+    const cKey = `astock:quote:${codes.sort().join(',')}`;
+    const results = await aStockSwr(cKey, 5, () => fetchSinaFull(sinaList));
     res.json(results);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -1744,21 +1745,25 @@ app.get('/api/us/quote', async (req, res) => {
   try {
     const symbols = (req.query.symbols || '').split(',').map(s => s.trim().toUpperCase()).filter(s => s && /^[A-Z0-9\^\.\-]{1,12}$/.test(s)).slice(0, 30);
     if (!symbols.length) return res.json([]);
-    const results = await yahooFinance.quote(symbols);
-    const arr = Array.isArray(results) ? results : [results];
-    res.json(arr.filter(q => q && q.regularMarketPrice != null).map(q => ({
-      symbol: q.symbol, name: q.shortName || q.longName || q.symbol,
-      price: q.regularMarketPrice, change: q.regularMarketChange,
-      changePercent: q.regularMarketChangePercent,
-      open: q.regularMarketOpen, high: q.regularMarketDayHigh,
-      low: q.regularMarketDayLow, prevClose: q.regularMarketPreviousClose,
-      volume: q.regularMarketVolume, marketCap: q.marketCap,
-      marketState: q.marketState,
-      preMarketPrice: q.preMarketPrice || null,
-      preMarketChange: q.preMarketChangePercent || null,
-      postMarketPrice: q.postMarketPrice || null,
-      postMarketChange: q.postMarketChangePercent || null,
-    })));
+    const cKey = `us:quote:${symbols.sort().join(',')}`;
+    const data = await usStockSwr(cKey, 10, async () => {
+      const results = await yahooFinance.quote(symbols);
+      const arr = Array.isArray(results) ? results : [results];
+      return arr.filter(q => q && q.regularMarketPrice != null).map(q => ({
+        symbol: q.symbol, name: q.shortName || q.longName || q.symbol,
+        price: q.regularMarketPrice, change: q.regularMarketChange,
+        changePercent: q.regularMarketChangePercent,
+        open: q.regularMarketOpen, high: q.regularMarketDayHigh,
+        low: q.regularMarketDayLow, prevClose: q.regularMarketPreviousClose,
+        volume: q.regularMarketVolume, marketCap: q.marketCap,
+        marketState: q.marketState,
+        preMarketPrice: q.preMarketPrice || null,
+        preMarketChange: q.preMarketChangePercent || null,
+        postMarketPrice: q.postMarketPrice || null,
+        postMarketChange: q.postMarketChangePercent || null,
+      }));
+    });
+    res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
